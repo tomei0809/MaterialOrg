@@ -1,6 +1,6 @@
 # 環境構築手順書：Material Organization
 
-## 1. 目的
+## 1. 目的ggg
 
 Ruby on Rails、React、TypeScript、PostgreSQLを使用した開発環境を構築し、フロントエンドとバックエンドが連携できる状態にする。
 
