@@ -1,117 +1,105 @@
 # データベース設計：Material Organization
 
+テーブルと関連の図は [ER図](er-diagram.md) を参照してください。
+この文書は `backend/db/schema.rb`（version 2026_10_27_120000）と各モデルの検証に合わせています。
+
 ## 1. 目的
 
-講義資料と科目の情報を適切に保存し、科目別の検索・一覧表示を実現する。
+講義資料（教材）を、フォルダ・まとめ・タグで整理して保存し、検索・絞り込み・並び替え・「お気に入り」「最近使った資料」を実現する。
 
 ## 2. テーブル構成
 
-初期開発では、次の2つの業務テーブルを中心に構成する。
+| テーブル | 役割 |
+|---|---|
+| `materials` | 教材（資料1件） |
+| `folders` | フォルダ。`parent_id` で階層を作る（最大5階層） |
+| `bundles` | まとめ（複数の教材を1つに束ねる） |
+| `tags` | タグ |
+| `material_tags` | 教材とタグの中間テーブル |
+| `active_storage_*` | 添付ファイル（Rails の Active Storage が管理） |
 
-- `subjects`：科目情報
-- `documents`：資料情報
+当初設計の `subjects`（科目）と `documents` は廃止した。科目・学期・単元は、利用者が作るフォルダの階層で表す。
 
-ファイルの添付情報はActive Storageが管理するテーブルを利用する。
+## 3. materials
 
-## 3. subjectsテーブル
+| カラム | 型 | 制約 | 説明 |
+|---|---|---|---|
+| id | bigint | 主キー | 教材ID |
+| title | string | 必須（検証） | タイトル |
+| material_type | string | 必須・下の5種のいずれか | 種類 |
+| description | text | NULL 可 | 説明 |
+| folder_id | bigint | 外部キー・NULL 可・`on_delete: :nullify` | 所属フォルダ（NULL は未分類） |
+| bundle_id | bigint | 外部キー・NULL 可・`on_delete: :nullify` | 所属するまとめ |
+| bundle_position | integer | NULL 可 | まとめの中の並び順 |
+| favorited_at | datetime | NULL 可・インデックス | お気に入りに入れた日時 |
+| last_opened_at | datetime | NULL 可・インデックス | 最後に開いた日時 |
+| created_at / updated_at | datetime | 必須 | 登録・更新日時 |
 
-| カラム        | 型       | 制約     | 説明     |
-| ------------- | -------- | -------- | -------- |
-| id            | bigint   | 主キー   | 科目ID   |
-| name          | string   | NOT NULL | 科目名   |
-| academic_year | integer  | NULL許可 | 年度     |
-| semester      | string   | NULL許可 | 学期     |
-| created_at    | datetime | NOT NULL | 作成日時 |
-| updated_at    | datetime | NOT NULL | 更新日時 |
+- `material_type`：`slide`（講義スライド）・`assignment`（課題）・`past_exam`（過去問）・`notes`（ノート）・`other`（その他）
+- 添付ファイル：`has_one_attached :file`。500MB まで。拡張子は許可リスト（PDF・Office・画像・動画・音声・コード・ZIP）に限る。
+- タグ：1教材あたり10個まで。タグ名は30文字以内。
 
-### 補足
+## 4. folders
 
-- `id` はRailsが自動生成する。
-- `name` は必須とする。
-- `academic_year` は例として2026を保存する。
-- `semester` は「前期」「後期」などを保存する。
-- 学期は初期段階では文字列で管理する。
+| カラム | 型 | 制約 | 説明 |
+|---|---|---|---|
+| id | bigint | 主キー | フォルダID |
+| name | string | 必須・30文字以内 | フォルダ名 |
+| color | string | 必須・既定 `blue` | blue / green / yellow / red / purple / teal / orange / olive / pink / gray |
+| parent_id | bigint | 外部キー（folders）・NULL 可 | 親フォルダ（NULL は最上位） |
+| position | integer | 必須・既定 0 | 同じ親の中での並び順 |
+| created_at / updated_at | datetime | 必須 | |
 
-## 4. documentsテーブル
+- `(parent_id, name)` に一意インデックス（`NULLS NOT DISTINCT`）。同じ親の中で同名は作れない。
+- 検証：親が存在すること、自分の子孫を親にしない（循環の禁止）、深さが5階層以内。
+- 作成時は同じ親の末尾に置く（`before_create :place_at_end`）。
 
-| カラム        | 型       | 制約     | 説明         |
-| ------------- | -------- | -------- | ------------ |
-| id            | bigint   | 主キー   | 資料ID       |
-| subject_id    | bigint   | 外部キー | 所属科目ID   |
-| title         | string   | NOT NULL | 資料タイトル |
-| description   | text     | NULL許可 | 内容の説明   |
-| document_type | string   | NOT NULL | 資料種別     |
-| lecture_date  | date     | NULL許可 | 講義日       |
-| tags          | string   | NULL許可 | タグ         |
-| created_at    | datetime | NOT NULL | 登録日時     |
-| updated_at    | datetime | NOT NULL | 更新日時     |
+## 5. bundles
 
-### 補足
+| カラム | 型 | 制約 | 説明 |
+|---|---|---|---|
+| id | bigint | 主キー | まとめID |
+| name | string | 必須・50文字以内 | まとめの名前 |
+| created_at / updated_at | datetime | 必須 | |
 
-- `subject_id` は `subjects.id` を参照する。
-- `title` は必須とする。
-- `document_type` の値は `lecture_material`、`assignment`、`notes`、`reference`、`other` などを使用する。
-- タグは初期段階ではカンマ区切りの文字列などで簡易的に管理する。
-- タグの検索要件が増えた場合は、タグ専用テーブルを設ける設計に変更する。
-- 資料のファイル本体はdocumentsテーブルに直接保存しない。
+- 中身は `materials.bundle_id` と `bundle_position` で表す。中身が空になったまとめは自動で削除する（`Bundle.remove_empty`）。
 
-## 5. テーブル間の関係
+## 6. tags / material_tags
 
-```text
-subjects
-  id (PK)
-   |
-   | 1対多
-   |
-documents
-  id (PK)
-  subject_id (FK)
-   |
-   | Active Storageによる添付
-   |
-  ファイル本体
-```
+| テーブル | カラム | 制約 |
+|---|---|---|
+| tags | name | 必須・30文字以内・一意インデックス |
+| material_tags | material_id, tag_id | 外部キー・`(material_id, tag_id)` で一意 |
 
-- 1つの科目には複数の資料を登録できる。
-- 各資料は1つの科目に所属する。
-- 初期段階では科目に所属しない資料は登録しない方針とする。
+- 教材の保存時に `tag_names` を渡すと、タグを作成・付け替えする。タグの付け替えと教材の保存は同じトランザクションで行う。
 
-## 6. Active Storage
+## 7. Active Storage
 
-RailsのActive Storageを使用し、資料レコードにファイルを関連付ける。
+- `active_storage_blobs` にファイルの名前・形式・サイズ・保存先のキーを、`active_storage_attachments` に教材との関連を保存する。
+- 保存先（サービス）は環境で切り替える：開発・テストはローカルディスク（`local` / `test`）、本番は Amazon S3（`amazon`）。
+- API はファイルの URL として `rails_storage_proxy_path` を返し、ファイルは Rails を通して配信する（Range リクエストにも対応）。
 
-例：
+## 8. インデックス
 
-```ruby
-class Document < ApplicationRecord
-  belongs_to :subject
-  has_one_attached :file
-end
-```
+| テーブル | インデックス |
+|---|---|
+| materials | folder_id、bundle_id、favorited_at、last_opened_at |
+| folders | parent_id、(parent_id, name) 一意 |
+| tags | name 一意 |
+| material_tags | material_id、tag_id、(material_id, tag_id) 一意 |
 
-ファイル本体はストレージに保存し、添付に関する情報はActive Storageが管理する。
+## 9. 削除時の扱い
 
-## 7. インデックス・制約
+| 削除するもの | 扱い |
+|---|---|
+| 教材 | 教材・タグの関連・添付ファイルを削除する。空になったまとめも削除する |
+| フォルダ | 中のサブフォルダと教材は削除せず、1つ上のフォルダ（最上位なら未分類）の末尾へ移す |
+| まとめ | まとめだけを解除する。教材は残る |
+| タグ | 単独の削除 API はない。使われていないタグは一覧に出さない |
 
-- documents.subject_idに外部キー制約を設定する。
-- documents.subject_idにインデックスを設定する。
-- subjects.nameは必須とする。
-- documents.titleは必須とする。
-- documents.document_typeは許可された値だけを受け付ける。
-- 科目の削除時は、所属資料が存在する場合の扱いを明示する。初期仕様では、資料が残っている科目は削除できない方針とする。
+## 10. 今後の拡張候補
 
-## 8. 削除時の扱い
-
-- 資料削除時は、資料レコードと関連ファイルを整合するように削除する。
-- 科目削除時は、所属資料が存在する場合は削除を拒否する。
-- Active Storageの添付レコードとファイル本体の削除動作を確認する。
-
-## 9. 今後の拡張候補
-
-- tagsテーブルとdocument_tagsテーブルによる多対多関係
-- ユーザー管理テーブル
-- 資料の公開範囲
+- ユーザー管理（ログイン）と、教材・フォルダの所有者
 - ファイルのハッシュ値による重複検知
-- OCR結果や全文検索用テキストの保存
-
-これらは初期開発の必須要件には含めないものとする。
+- OCR 結果や全文検索用テキストの保存
+- S3 への直接アップロード（大きなファイルの送信を Rails から切り離す）
