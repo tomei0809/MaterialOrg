@@ -1,5 +1,10 @@
 # 画面設計：Material Organization
 
+> **現行実装との差異（2026-10-24 時点）**
+> この文書は実装前の当初設計です。現在の実装では「科目（subjects）」は廃止し、分類はフォルダ（階層化可能）で行います。
+> 教材は `materials` テーブル（title / material_type / description / folder_id / bundle_id ＋添付ファイル・タグ）、API は `/api/v1/materials`・`/api/v1/folders`・`/api/v1/bundles`・`/api/v1/tags` です。
+> 最新の仕様は `backend/db/schema.rb` と `backend/config/routes.rb` を参照してください。
+
 ## 1. 画面一覧
 
 | 画面ID | 画面名   | パス                | 主な機能               |
