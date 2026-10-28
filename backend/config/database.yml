@@ -90,21 +90,30 @@ test:
 # Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
 # for a full overview on how database connection configuration can be specified.
 #
+<%
+  # cache・queue・cable の接続先：*_DATABASE_URL がなければ、DATABASE_URL の DB 名に接尾辞を付けて作る
+  # （例 .../materialorg_production → .../materialorg_production_cache）。DB は起動時の db:prepare で作られる
+  derived_database_url = lambda do |suffix|
+    ENV.fetch("#{suffix.upcase}_DATABASE_URL") do
+      ENV["DATABASE_URL"]&.sub(%r{/([^/?]+)(?=\?|\z)}) { "/#{Regexp.last_match(1)}_#{suffix}" }
+    end
+  end
+%>
 production:
   primary: &primary_production
-    <<: *default
-    database: backend_production
-    username: backend
-    password: <%= ENV["BACKEND_DATABASE_PASSWORD"] %>
+    adapter: postgresql
+    encoding: unicode
+    max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+    url: <%= ENV["DATABASE_URL"] %>
   cache:
     <<: *primary_production
-    database: backend_production_cache
+    url: <%= derived_database_url.call("cache") %>
     migrations_paths: db/cache_migrate
   queue:
     <<: *primary_production
-    database: backend_production_queue
+    url: <%= derived_database_url.call("queue") %>
     migrations_paths: db/queue_migrate
   cable:
     <<: *primary_production
-    database: backend_production_cable
+    url: <%= derived_database_url.call("cable") %>
     migrations_paths: db/cable_migrate
