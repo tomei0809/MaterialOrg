@@ -1,6 +1,6 @@
 # ER図：Material Organization
 
-`backend/db/schema.rb`（version 2026_10_27_120000）をもとにした、テーブルと関連の図です。
+`backend/db/schema.rb`（version 2026_10_28_120000）をもとにした、テーブルと関連の図です。
 各テーブルの列の意味や制約は [データベース設計](database-design.md) にまとめています。
 
 ```mermaid
@@ -34,6 +34,7 @@ erDiagram
         integer bundle_position "まとめの中の並び順"
         datetime favorited_at "NULL でなければお気に入り"
         datetime last_opened_at "最近使った資料"
+        datetime deleted_at "NULL でなければゴミ箱（30日で完全に削除）"
         datetime created_at
         datetime updated_at
     }
@@ -95,10 +96,12 @@ erDiagram
 | folders → materials | 1対多（任意） | 外部キーは `on_delete: :nullify`。教材は消えずに未分類になる |
 | bundles → materials | 1対多（任意）。`bundle_position` で並ぶ | まとめを解除しても教材は残る（`dependent: :nullify`）。中身が空になったまとめは自動で消す |
 | materials ↔ tags | 多対多（material_tags が中間テーブル） | 教材を消すと material_tags も消える。1教材あたりタグは10個まで |
-| materials → ファイル | Active Storage の `has_one_attached :file` | 教材を消すと添付も消える。実体は開発ではディスク、本番では S3 に置く |
+| materials → ファイル | Active Storage の `has_one_attached :file` | 教材を完全に削除すると添付も消える。実体は開発ではディスク、本番では S3 に置く |
+| materials（ゴミ箱） | `deleted_at` による論理削除 | 削除するとまずゴミ箱へ（フォルダは保持、まとめからは外れる）。30日後に `PurgeTrashJob` が完全に削除する |
 
 ## 設計上の判断
 
 - **科目テーブルを持たない**：初期設計の `subjects` は廃止し、科目はフォルダで表す（`20261024131329_remove_subject_from_materials`）。科目・学期・単元のような入れ子を、利用者が自由に作れるようにするため。
 - **お気に入り・最近使ったは日時の列**：真偽値ではなく `favorited_at`・`last_opened_at` にして、「入れた順」「開いた順」に並べられるようにした。更新は `update_all`・`update_columns` で行い、`updated_at`（更新日順の並び替え）を変えない。
+- **ゴミ箱は論理削除**：削除をすぐに確定させず `deleted_at` を入れるだけにして、誤って消した教材を30日間は戻せるようにした。添付ファイルの実体も30日間は残るため、S3 の容量は完全に削除するまで減らない。
 - **フォルダ名の重複**：`(parent_id, name)` の一意インデックスに `NULLS NOT DISTINCT` を付け、最上位（parent_id が NULL）どうしでも同じ名前を作れないようにしている。

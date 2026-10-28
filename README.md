@@ -16,6 +16,7 @@ PDF・画像・動画・コード・Office ファイルなど形式がばらば�
 | 探す | タイトル・フォルダ名・タグ・説明の検索、直近8件の検索履歴、種類タブ、タグでの絞り込み |
 | 見る | マウスを乗せるとプレビュー（PDF のスライドショー、動画の無音再生、コードの自動スクロール）。画面全体のビューアで PDF・画像の拡大と移動、コード検索、Office・CSV・ZIP の中身表示 |
 | すぐ戻る | お気に入り、最近使った資料、サイドバーの展開で教材名を表示 |
+| ゴミ箱 | 削除した教材は30日間ゴミ箱に残り、元のフォルダへ戻せる（削除直後の通知の「元に戻す」、Delete キー、サイドバーへのドラッグにも対応）。30日を過ぎると自動で完全に削除 |
 | 表示 | 1〜3列の一覧、詰めた表示、ダーク表示、サイドバーのアイコン表示 |
 
 ![画面内ビューア](docs/images/viewer-pdf.png)
@@ -49,7 +50,8 @@ MateOrg/
 │       ├── hooks/                データ取得と設定の保存
 │       ├── lib/                  API 呼び出し・並び替え・ZIP/Office の読み取りなど
 │       └── types/                型定義
-├── docs/                    設計書（要件・構成・ER図・API・画面・テスト手順）
+├── docs/                    設計書（要件・構成・ER図・API・画面・テスト手順・本番の手順）
+├── render.yaml              Render の Blueprint（本番の Rails と PostgreSQL）
 └── .github/workflows/ci.yml GitHub Actions
 ```
 
@@ -93,7 +95,12 @@ npm run dev -- -p 3001
 | `RAILS_API_URL` | frontend | 転送先の Rails の URL（ビルド時に読み込まれる） |
 | `POSTGRES_PASSWORD` | backend（開発・テスト） | ローカルの PostgreSQL のパスワード |
 | `RAILS_MASTER_KEY` | backend（本番） | `config/credentials.yml.enc` を開く鍵。リポジトリには入れない |
-| `DATABASE_URL` ほか | backend（本番） | 本番 DB の接続先。[本番環境ガイド](docs/deployment-guide.pdf) を参照 |
+| `DATABASE_URL` | backend（本番） | 本番 DB の接続先。cache・queue・cable の DB は DB 名に `_cache` などを付けて自動で決まる |
+| `AWS_ACCESS_KEY_ID`・`AWS_SECRET_ACCESS_KEY`・`S3_BUCKET`・`AWS_REGION` | backend（本番） | 添付ファイルの保存先（Amazon S3） |
+| `APP_HOST` | backend（本番） | 受け付けるホスト名（カンマ区切り） |
+| `SOLID_QUEUE_IN_PUMA` | backend（本番） | `true` でジョブ（添付の削除・ゴミ箱の自動削除）を Puma の中で動かす |
+
+本番環境の作り方は [本番環境への移行手順](docs/deployment.md)（Vercel ＋ Render ＋ S3、`render.yaml` を使用）を見てください。
 
 ## テスト
 
@@ -124,5 +131,6 @@ npm run build
 | [API仕様書](docs/api-spec.md) | エンドポイント・リクエスト・レスポンス |
 | [画面設計](docs/screen-design.md) | 画面の構成と操作 |
 | [テスト手順](docs/testing.md) | 自動テストと手動確認 |
-| [本番環境ガイド（PDF）](docs/deployment-guide.pdf) | デプロイ先の候補と構築手順 |
+| [本番環境への移行手順](docs/deployment.md) | Vercel ＋ Render ＋ S3 で公開する手順と確認項目 |
+| [本番環境ガイド（PDF）](docs/deployment-guide.pdf) | デプロイ先の候補の比較と構築の考え方 |
 | [環境構築手順](docs/setup-guide.md) | 初期構築の記録 |

@@ -1,7 +1,7 @@
 # データベース設計：Material Organization
 
 テーブルと関連の図は [ER図](er-diagram.md) を参照してください。
-この文書は `backend/db/schema.rb`（version 2026_10_27_120000）と各モデルの検証に合わせています。
+この文書は `backend/db/schema.rb`（version 2026_10_28_120000）と各モデルの検証に合わせています。
 
 ## 1. 目的
 
@@ -33,11 +33,13 @@
 | bundle_position | integer | NULL 可 | まとめの中の並び順 |
 | favorited_at | datetime | NULL 可・インデックス | お気に入りに入れた日時 |
 | last_opened_at | datetime | NULL 可・インデックス | 最後に開いた日時 |
+| deleted_at | datetime | NULL 可・インデックス | ゴミ箱に入れた日時（NULL はゴミ箱に入っていない） |
 | created_at / updated_at | datetime | 必須 | 登録・更新日時 |
 
 - `material_type`：`slide`（講義スライド）・`assignment`（課題）・`past_exam`（過去問）・`notes`（ノート）・`other`（その他）
 - 添付ファイル：`has_one_attached :file`。500MB まで。拡張子は許可リスト（PDF・Office・画像・動画・音声・コード・ZIP）に限る。
 - タグ：1教材あたり10個まで。タグ名は30文字以内。
+- ゴミ箱：`deleted_at` が入っている教材は、一覧・フォルダとタグの件数・一括操作の対象から外す（スコープ `Material.kept` / `Material.trashed`）。30日（`Material::TRASH_RETENTION`）を過ぎたものは `PurgeTrashJob` が毎日完全に削除する。
 
 ## 4. folders
 
@@ -83,7 +85,7 @@
 
 | テーブル | インデックス |
 |---|---|
-| materials | folder_id、bundle_id、favorited_at、last_opened_at |
+| materials | folder_id、bundle_id、favorited_at、last_opened_at、deleted_at |
 | folders | parent_id、(parent_id, name) 一意 |
 | tags | name 一意 |
 | material_tags | material_id、tag_id、(material_id, tag_id) 一意 |
@@ -92,7 +94,8 @@
 
 | 削除するもの | 扱い |
 |---|---|
-| 教材 | 教材・タグの関連・添付ファイルを削除する。空になったまとめも削除する |
+| 教材（通常の削除） | ゴミ箱へ移す（`deleted_at` を入れる）。フォルダは覚えておき、まとめからは外す。空になったまとめは削除する。30日間は元に戻せる |
+| 教材（完全に削除・30日経過） | 教材・タグの関連・添付ファイル（S3 の実体）を削除する |
 | フォルダ | 中のサブフォルダと教材は削除せず、1つ上のフォルダ（最上位なら未分類）の末尾へ移す |
 | まとめ | まとめだけを解除する。教材は残る |
 | タグ | 単独の削除 API はない。使われていないタグは一覧に出さない |

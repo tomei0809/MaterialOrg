@@ -3,7 +3,7 @@
 ## 1. 目的
 
 Material Organization の構成要素、各技術の役割、データの流れを定義する。
-本番環境の具体的な作り方とデプロイ先の候補は [本番環境ガイド（PDF）](deployment-guide.pdf) にまとめている。
+本番環境の作り方は [本番環境への移行手順](deployment.md)、デプロイ先の候補の比較は [本番環境ガイド（PDF）](deployment-guide.pdf) にまとめている。
 
 ## 2. システム構成
 
@@ -24,9 +24,9 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    B["ブラウザ"] -->|"HTTPS"| N["Next.js のホスティング<br/>（Vercel / Amplify など）"]
-    N -->|"rewrites で転送（HTTPS）<br/>RAILS_API_URL"| R["Rails API（Docker）<br/>Puma + Thruster"]
-    R -->|"SSL"| P[("PostgreSQL（マネージド）<br/>primary・cache・queue・cable")]
+    B["ブラウザ"] -->|"HTTPS"| N["Vercel<br/>Next.js"]
+    N -->|"rewrites で転送（HTTPS）<br/>RAILS_API_URL"| R["Render（render.yaml）<br/>Rails API・Docker・Puma<br/>Solid Queue のジョブも同居"]
+    R -->|"DATABASE_URL"| P[("Render Postgres<br/>primary・cache・queue・cable")]
     R -->|"Active Storage（amazon）<br/>IAM の最小権限"| S[("Amazon S3<br/>非公開バケット")]
     G["GitHub"] -->|"push で CI（GitHub Actions）"| G
     G -.->|"自動デプロイ"| N
@@ -80,7 +80,13 @@ sequenceDiagram
 4. Active Storage がファイルを保存先（開発はディスク、本番は S3）へ書き込み、教材とタグを1つのトランザクションで保存する。
 5. 登録した教材の JSON を返し、画面の一覧を更新する。
 
-### 5.3 ファイルの表示
+### 5.3 削除とゴミ箱
+
+1. 削除するとゴミ箱へ移る（`materials.deleted_at` に日時を入れる）。一覧・件数・一括操作の対象から外れ、まとめからは外れる。
+2. 画面の通知の「元に戻す」か、サイドバーの「ゴミ箱」から元に戻せる。
+3. ゴミ箱で「完全に削除」したもの、または30日を過ぎたもの（`PurgeTrashJob` が毎日 4:00 に実行）は、教材と添付ファイル（S3 の実体）を削除する。添付の削除は Active Storage がジョブで行う。
+
+### 5.4 ファイルの表示
 
 1. プレビュー・ビューアは `file_url`（`/rails/active_storage/blobs/proxy/...`）を読み込む。
 2. Next.js が Rails へ転送し、Rails が保存先からファイルを読み出して返す（proxy 方式）。
@@ -97,5 +103,5 @@ sequenceDiagram
 
 ## 7. デプロイ方針
 
-- Next.js はフロント向けホスティング、Rails は Docker コンテナ（`backend/Dockerfile`）、DB はマネージド PostgreSQL、ファイルは S3 に置く。
-- 候補の比較と手順は [本番環境ガイド（PDF）](deployment-guide.pdf) を参照。
+- Next.js は Vercel、Rails は Render の Docker の Web Service（`backend/Dockerfile`、`render.yaml`）、DB は Render Postgres、ファイルは S3 に置く。
+- 手順は [本番環境への移行手順](deployment.md)、候補の比較は [本番環境ガイド（PDF）](deployment-guide.pdf) を参照。

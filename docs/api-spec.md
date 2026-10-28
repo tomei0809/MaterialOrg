@@ -32,10 +32,13 @@
 
 | メソッド | パス | 用途 |
 |---|---|---|
-| GET | `/api/v1/materials` | 教材一覧・検索 |
+| GET | `/api/v1/materials` | 教材一覧・検索（ゴミ箱の教材は含まない） |
 | POST | `/api/v1/materials` | 教材の登録（ファイル付き） |
 | PATCH | `/api/v1/materials/:id` | 教材の更新 |
-| DELETE | `/api/v1/materials/:id` | 教材の削除 |
+| DELETE | `/api/v1/materials/:id` | 教材をゴミ箱へ移す |
+| GET | `/api/v1/materials/trash` | ゴミ箱の一覧 |
+| PATCH | `/api/v1/materials/restore` | ゴミ箱から元に戻す |
+| DELETE | `/api/v1/materials/purge` | ゴミ箱の教材を完全に削除 |
 | PATCH | `/api/v1/materials/move` | 複数の教材をフォルダへ移動 |
 | PATCH | `/api/v1/materials/assign_bundle` | 複数の教材をまとめに入れる／外す |
 | PATCH | `/api/v1/materials/favorite` | お気に入りに入れる／外す |
@@ -69,6 +72,7 @@
   "bundle_position": null,
   "favorited_at": "2026-10-27T10:00:00.000+09:00",
   "last_opened_at": null,
+  "deleted_at": null,
   "created_at": "2026-10-20T09:00:00.000+09:00",
   "updated_at": "2026-10-21T09:00:00.000+09:00",
   "tags": ["試験対策", "重要"],
@@ -76,7 +80,8 @@
   "file_url": "/rails/active_storage/blobs/proxy/eyJfcmFpbHMi.../lecture03.pdf",
   "file_name": "lecture03.pdf",
   "file_size": 2345678,
-  "file_content_type": "application/pdf"
+  "file_content_type": "application/pdf",
+  "purge_at": null
 }
 ```
 
@@ -87,12 +92,13 @@
 | bundle_id・bundle_position | 所属するまとめと、その中の並び順 |
 | favorited_at | `null` でなければお気に入り（入れた日時） |
 | last_opened_at | 最後に開いた日時 |
+| deleted_at・purge_at | ゴミ箱に入れた日時と、完全に削除される日時（入れてから30日後）。ゴミ箱に入っていなければ `null` |
 | tags | タグ名（名前順） |
 | file_* | 添付がないときは `file_attached: false`、ほかは `null` |
 
 ### 3.2 GET /api/v1/materials（一覧・検索）
 
-新しく登録した順（`created_at` の降順）に返す。並び替え・種類の絞り込み・資料マップの集計は画面側でも行う。
+ゴミ箱に入っていない教材を、新しく登録した順（`created_at` の降順）に返す。並び替え・種類の絞り込み・資料マップの集計は画面側でも行う。
 
 | クエリ | 例 | 説明 |
 |---|---|---|
@@ -143,13 +149,18 @@ curl -X POST http://localhost:3000/api/v1/materials \
 
 登録と同じ項目を `multipart/form-data` で送る。`material[file]` を省くと添付はそのまま。タグは送った内容に置き換わる。
 
-**200 OK**：更新後の教材。 **404**：教材がない。 **422**：検証エラー。
+**200 OK**：更新後の教材。 **404**：教材がない（ゴミ箱の教材も 404）。 **422**：検証エラー。
 
-### 3.5 DELETE /api/v1/materials/:id（削除）
+### 3.5 DELETE /api/v1/materials/:id（ゴミ箱へ移す）
 
-教材・タグの関連・添付ファイルを削除する。中身が空になったまとめも削除する。
+教材を**ゴミ箱へ移す**（`deleted_at` に現在時刻を入れる）。30日間は 3.10 で元に戻せる。
 
-**204 No Content**。 **404**：教材がない。
+- 一覧・フォルダの件数・タグの件数・各種の一括操作の対象から外れる。
+- フォルダ（`folder_id`）は覚えておき、戻すとそのフォルダに戻る。
+- まとめからは外す。中身が空になったまとめは削除する。
+- `updated_at` は変えない。
+
+**204 No Content**。 **404**：教材がない、またはすでにゴミ箱にある。
 
 ### 3.6 PATCH /api/v1/materials/move（フォルダへ移動）
 
@@ -187,6 +198,41 @@ curl -X POST http://localhost:3000/api/v1/materials \
 
 **200 OK**：`{ "id": 12, "last_opened_at": "2026-10-27T12:00:00.000+09:00" }`　**404**：教材がない。
 
+### 3.10 GET /api/v1/materials/trash（ゴミ箱の一覧）
+
+ゴミ箱の教材を、ゴミ箱へ入れた日時の新しい順に返す（教材のオブジェクトの配列。`deleted_at`・`purge_at` が入る）。
+呼ばれたときに、30日を過ぎたものを先に完全に削除する（毎日の自動削除が止まっていても残らないように）。
+
+### 3.11 PATCH /api/v1/materials/restore（元に戻す）
+
+```json
+{ "ids": [12, 13] }
+```
+
+ゴミ箱の教材を元に戻す。元のフォルダが削除されていれば、そのフォルダの親（なければ未分類）に入っている。まとめには戻らない。
+
+**200 OK**：`{ "restored": 2 }`（ゴミ箱に入っていなかった ID は数えない）
+
+### 3.12 DELETE /api/v1/materials/purge（完全に削除）
+
+```json
+{ "ids": [12, 13] }
+```
+
+または、ゴミ箱を空にするとき
+
+```json
+{ "all": true }
+```
+
+ゴミ箱の教材を、タグの関連・添付ファイル（S3 の実体を含む）ごと完全に削除する。元に戻せない。ゴミ箱に入っていない教材の ID は無視する。
+
+**200 OK**：`{ "purged": 2 }`
+
+### 3.13 自動削除
+
+ゴミ箱に入れてから30日（`Material::TRASH_RETENTION`）を過ぎた教材は、`PurgeTrashJob` が毎日 4:00 に完全に削除する（`config/recurring.yml`、Solid Queue）。
+
 ---
 
 ## 4. フォルダ（folders）
@@ -202,7 +248,7 @@ curl -X POST http://localhost:3000/api/v1/materials \
 | color | blue / green / yellow / red / purple / teal / orange / olive / pink / gray |
 | parent_id | 親フォルダ。`null` は最上位 |
 | position | 同じ親の中での並び順（0 から） |
-| materials_count | そのフォルダ直下の教材数（サブフォルダの分は含まない） |
+| materials_count | そのフォルダ直下の教材数（サブフォルダとゴミ箱の分は含まない） |
 
 ### 4.2 GET /api/v1/folders
 
@@ -296,7 +342,7 @@ curl -X POST http://localhost:3000/api/v1/materials \
 
 ### 6.1 GET /api/v1/tags
 
-教材に使われているタグを、使われている数の多い順（同数なら名前順）に返す。使われていないタグは返さない。
+教材に使われているタグを、使われている数の多い順（同数なら名前順）に返す。使われていないタグ、ゴミ箱の教材だけに付いているタグは返さない。
 
 ```json
 [
@@ -310,6 +356,6 @@ curl -X POST http://localhost:3000/api/v1/materials \
 ## 7. 実装上の注意
 
 - 一覧・フォルダ・まとめ・タグは画面を開いたときにまとめて取得し、並び替え・絞り込み・集計は画面側で行う（教材数が数千件程度までを想定）。
-- 一括操作（move・assign_bundle・favorite）は `update_all` を使い、1回の SQL で更新する。
+- 一括操作（move・assign_bundle・favorite）は `update_all` を使い、1回の SQL で更新する。ゴミ箱の教材は対象にしない。
 - お気に入りと開いた記録は `updated_at` を変えない（「更新日順」の並びを崩さないため）。
 - 本番でファイルの保存先を S3 にしても、API の形は変わらない（`file_url` は同じ proxy のパス）。
