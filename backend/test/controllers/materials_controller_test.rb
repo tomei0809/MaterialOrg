@@ -202,4 +202,85 @@ class Api::V1::MaterialsControllerTest < ActionDispatch::IntegrationTest
     assert json.key?("last_opened_at")
     assert json.key?("favorited_at")
   end
+
+  test "削除するとゴミ箱へ移り、一覧・フォルダの件数・タグから消える" do
+    slide = materials(:math_slide)
+    folder_count = -> { get api_v1_folders_url; response.parsed_body.find { |f| f["id"] == slide.folder_id }["materials_count"] }
+    before = folder_count.call
+
+    delete api_v1_material_url(slide)
+    assert_response :no_content
+    assert slide.reload.trashed?
+    assert_equal folders(:first_year).id, slide.folder_id, "フォルダは覚えておく"
+
+    get api_v1_materials_url
+    assert_not_includes response.parsed_body.map { |m| m["id"] }, slide.id
+    assert_equal before - 1, folder_count.call
+
+    get api_v1_tags_url
+    assert_not_includes response.parsed_body.map { |t| t["name"] }, "復習用"
+  end
+
+  test "ゴミ箱の一覧は削除した日時と完全に削除される日時を返す" do
+    get trash_api_v1_materials_url
+    assert_response :success
+
+    item = response.parsed_body.find { |m| m["id"] == materials(:trashed_note).id }
+    assert_not_nil item["deleted_at"]
+    assert_equal Time.zone.parse(item["deleted_at"]) + Material::TRASH_RETENTION, Time.zone.parse(item["purge_at"])
+    assert response.parsed_body.all? { |m| m["deleted_at"].present? }
+  end
+
+  test "ゴミ箱から元のフォルダへ戻せる" do
+    note = materials(:trashed_note)
+
+    patch restore_api_v1_materials_url, params: { ids: [ note.id ] }, as: :json
+    assert_response :success
+    assert_equal 1, response.parsed_body["restored"]
+    assert_nil note.reload.deleted_at
+
+    get api_v1_materials_url(folder_id: folders(:first_year).id)
+    assert_includes response.parsed_body.map { |m| m["id"] }, note.id
+  end
+
+  test "ゴミ箱の教材は移動・お気に入り・更新・まとめの対象にならない" do
+    note = materials(:trashed_note)
+
+    patch move_api_v1_materials_url, params: { ids: [ note.id ], folder_id: "" }, as: :json
+    assert_equal 0, response.parsed_body["moved"]
+    patch favorite_api_v1_materials_url, params: { ids: [ note.id ], favorite: true }, as: :json
+    assert_equal 0, response.parsed_body["updated"]
+    patch assign_bundle_api_v1_materials_url, params: { ids: [ note.id ], bundle_id: bundles(:math_slides).id }, as: :json
+    assert_nil note.reload.bundle_id
+
+    patch api_v1_material_url(note), params: { material: { title: "変更" } }
+    assert_response :not_found
+  end
+
+  test "選んだ教材、またはゴミ箱のすべてを完全に削除できる" do
+    note = materials(:trashed_note)
+    delete api_v1_material_url(materials(:programming_exam))
+
+    assert_difference -> { Material.count }, -1 do
+      delete purge_api_v1_materials_url, params: { ids: [ note.id ] }, as: :json
+    end
+    assert_equal 1, response.parsed_body["purged"]
+
+    # ゴミ箱に入っていない教材は ID を渡しても消えない
+    assert_no_difference -> { Material.count } do
+      delete purge_api_v1_materials_url, params: { ids: [ materials(:math_slide).id ] }, as: :json
+    end
+
+    delete purge_api_v1_materials_url, params: { all: true }, as: :json
+    assert_equal 0, Material.trashed.count
+    assert Material.exists?(materials(:math_slide).id)
+  end
+
+  test "期限を過ぎたゴミ箱の教材は、ゴミ箱を開いたときに完全に削除される" do
+    note = materials(:trashed_note)
+    note.update_columns(deleted_at: (Material::TRASH_RETENTION + 1.day).ago)
+
+    get trash_api_v1_materials_url
+    assert_not Material.exists?(note.id)
+  end
 end

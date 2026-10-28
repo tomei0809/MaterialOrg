@@ -88,4 +88,42 @@ class MaterialTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "ゴミ箱へ移すとまとめから外れ、空になったまとめは消える。更新日は変わらない" do
+    slide = materials(:math_slide)
+    updated_at = slide.updated_at
+
+    slide.trash!
+
+    assert slide.trashed?
+    assert_nil slide.bundle_id
+    assert_nil slide.bundle_position
+    assert_equal updated_at, slide.reload.updated_at
+    assert_not Bundle.exists?(ActiveRecord::FixtureSet.identify(:math_slides))
+    assert_not_includes Material.kept, slide
+  end
+
+  test "元に戻すと一覧の対象に戻る" do
+    note = materials(:trashed_note)
+    note.restore!
+    assert_includes Material.kept, note
+  end
+
+  test "purge_expired は期限を過ぎたものだけを完全に削除する" do
+    old = materials(:trashed_note)
+    old.update_columns(deleted_at: (Material::TRASH_RETENTION + 1.minute).ago)
+    recent = materials(:programming_exam)
+    recent.trash!
+
+    assert_equal 1, Material.purge_expired
+    assert_not Material.exists?(old.id)
+    assert Material.exists?(recent.id)
+  end
+
+  test "PurgeTrashJob は purge_expired を実行する" do
+    materials(:trashed_note).update_columns(deleted_at: 31.days.ago)
+    assert_difference -> { Material.count }, -1 do
+      PurgeTrashJob.perform_now
+    end
+  end
 end

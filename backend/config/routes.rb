@@ -13,6 +13,10 @@ Rails.application.routes.draw do
         patch :assign_bundle, on: :collection
         patch :favorite, on: :collection
         patch :opened, on: :member
+        # ゴミ箱
+        get :trash, on: :collection
+        patch :restore, on: :collection
+        delete :purge, on: :collection
       end
       resources :bundles, only: %i[index create update destroy] do
         patch :reorder, on: :member

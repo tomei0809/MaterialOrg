@@ -12,3 +12,11 @@ programming_exam:
   title: プログラミング言語A 過去問
   material_type: past_exam
   description:
+
+# ゴミ箱に入っている教材（一覧・件数には出ない）
+trashed_note:
+  title: 消したノート
+  material_type: notes
+  description:
+  folder: first_year
+  deleted_at: <%= 3.days.ago.to_fs(:db) %>

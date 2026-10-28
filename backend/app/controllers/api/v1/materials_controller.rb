@@ -3,7 +3,8 @@ module Api
     class MaterialsController < ApplicationController
       # GET /api/v1/materials
       def index
-        materials = Material.includes(:tags, file_attachment: :blob)
+        materials = Material.kept
+                            .includes(:tags, file_attachment: :blob)
                             .order(created_at: :desc)
 
         if params[:title].present?
@@ -52,7 +53,7 @@ module Api
 
       # PATCH /api/v1/materials/:id
       def update
-        material = Material.find(params[:id])
+        material = Material.kept.find(params[:id])
 
         if save_in_transaction(material)
           render json: material_json(material), status: :ok
@@ -64,13 +65,39 @@ module Api
       end
 
       # DELETE /api/v1/materials/:id
+      # ゴミ箱へ移す（TRASH_RETENTION のあいだは restore で元に戻せる）
       def destroy
-        material = Material.find(params[:id])
-        Material.transaction do
-          material.destroy!
-          Bundle.remove_empty
-        end
+        Material.transaction { Material.kept.find(params[:id]).trash! }
         head :no_content
+      end
+
+      # GET /api/v1/materials/trash
+      # ゴミ箱の教材を、削除した日時の新しい順に返す。期限を過ぎたものはここでも消しておく
+      def trash
+        Material.purge_expired
+        materials = Material.trashed
+                            .includes(:tags, file_attachment: :blob)
+                            .order(deleted_at: :desc)
+        render json: materials.map { |material| material_json(material) }
+      end
+
+      # PATCH /api/v1/materials/restore
+      # { ids } の教材をゴミ箱から元に戻す
+      def restore
+        materials = Material.trashed.where(id: Array(params[:ids]).map(&:to_i))
+        restored = materials.update_all(deleted_at: nil)
+        render json: { restored: restored }
+      end
+
+      # DELETE /api/v1/materials/purge
+      # { ids } または { all: true } で、ゴミ箱の教材を完全に削除する（元に戻せない）
+      def purge
+        materials = Material.trashed
+        unless ActiveModel::Type::Boolean.new.cast(params[:all])
+          materials = materials.where(id: Array(params[:ids]).map(&:to_i))
+        end
+        purged = Material.transaction { materials.find_each.map(&:destroy!).size }
+        render json: { purged: purged }
       end
 
       # PATCH /api/v1/materials/move
@@ -85,14 +112,15 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        moved = Material.where(id: ids).update_all(folder_id: folder_id)
+        moved = Material.kept.where(id: ids).update_all(folder_id: folder_id)
         render json: { moved: moved }
       end
 
       # PATCH /api/v1/materials/assign_bundle
       # 複数の教材をまとめに入れる（bundle_id が空ならまとめから外す）
       def assign_bundle
-        ids = Array(params[:ids]).map(&:to_i)
+        # ゴミ箱の教材はまとめに入れない
+        ids = Material.kept_ids_in_order(params[:ids])
         bundle_id = params[:bundle_id].presence
 
         if bundle_id && !Bundle.exists?(id: bundle_id)
@@ -115,7 +143,7 @@ module Api
       # 更新日（updated_at）は変えない（並び替えの「更新日順」に影響させないため）
       def favorite
         ids = Array(params[:ids]).map(&:to_i)
-        materials = Material.where(id: ids)
+        materials = Material.kept.where(id: ids)
         updated =
           if ActiveModel::Type::Boolean.new.cast(params[:favorite])
             # すでにお気に入りのものは、入れた日時をそのまま残す
@@ -129,7 +157,7 @@ module Api
       # PATCH /api/v1/materials/:id/opened
       # 教材を開いたことを記録する（「最近使った資料」）。更新日は変えない
       def opened
-        material = Material.find(params[:id])
+        material = Material.kept.find(params[:id])
         material.update_columns(last_opened_at: Time.current)
         render json: { id: material.id, last_opened_at: material.last_opened_at }
       end
@@ -163,7 +191,9 @@ module Api
           ),
           # 詳細パネルのプレビューとサイズ表示に使う
           file_size: (material.file.byte_size if material.file.attached?),
-          file_content_type: (material.file.content_type if material.file.attached?)
+          file_content_type: (material.file.content_type if material.file.attached?),
+          # ゴミ箱の教材だけ：完全に削除される日時
+          purge_at: material.purge_at
         )
       end
 

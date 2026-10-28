@@ -15,7 +15,8 @@ module Api
       # { bundle: { name:, material_ids: [...] } } で作成と同時に教材をまとめる
       def create
         bundle = Bundle.new(name: bundle_params[:name])
-        ids = Array(bundle_params[:material_ids]).map(&:to_i)
+        # ゴミ箱の教材はまとめに入れない
+        ids = Material.kept_ids_in_order(bundle_params[:material_ids])
 
         if ids.empty?
           return render json: {

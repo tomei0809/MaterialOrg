@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -80,7 +80,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_120000) do
     t.integer "bundle_position"
     t.datetime "favorited_at"
     t.datetime "last_opened_at"
+    t.datetime "deleted_at"
     t.index ["bundle_id"], name: "index_materials_on_bundle_id"
+    t.index ["deleted_at"], name: "index_materials_on_deleted_at"
     t.index ["favorited_at"], name: "index_materials_on_favorited_at"
     t.index ["folder_id"], name: "index_materials_on_folder_id"
     t.index ["last_opened_at"], name: "index_materials_on_last_opened_at"

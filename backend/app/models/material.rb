@@ -15,6 +15,8 @@ class Material < ApplicationRecord
   }.freeze
   ALLOWED_FILE_EXTENSIONS = FILE_EXTENSIONS.values.flatten.to_set.freeze
   MAX_FILE_SIZE = 500.megabytes
+  # ゴミ箱に残す期間（過ぎたものは PurgeTrashJob が完全に削除する）
+  TRASH_RETENTION = 30.days
 
   belongs_to :folder, optional: true
   belongs_to :bundle, optional: true
@@ -35,6 +37,46 @@ class Material < ApplicationRecord
 
   validate :tag_names_must_be_valid
   validate :file_must_be_allowed
+
+  # ゴミ箱：deleted_at が入っている教材は一覧・集計に出さない
+  scope :kept, -> { where(deleted_at: nil) }
+  scope :trashed, -> { where.not(deleted_at: nil) }
+  scope :expired, -> { trashed.where(deleted_at: ...TRASH_RETENTION.ago) }
+
+  # 渡された ID のうち、ゴミ箱に入っていないものを渡された順のまま返す
+  def self.kept_ids_in_order(ids)
+    ids = Array(ids).map(&:to_i)
+    kept_ids = kept.where(id: ids).pluck(:id).to_set
+    ids.select { |id| kept_ids.include?(id) }
+  end
+
+  # 期限を過ぎたゴミ箱の教材を完全に削除する（添付ファイルは Active Storage が後で消す）
+  def self.purge_expired
+    expired.find_each.map(&:destroy!).size
+  end
+
+  # ゴミ箱へ移す。フォルダは覚えておき、まとめからは外す（空になったまとめは消す）。
+  # 更新日（updated_at）は変えない
+  def trash!
+    return if trashed?
+
+    update_columns(deleted_at: Time.current, bundle_id: nil, bundle_position: nil)
+    Bundle.remove_empty
+  end
+
+  # ゴミ箱から元に戻す（元のフォルダが消えていれば未分類になっている）
+  def restore!
+    update_columns(deleted_at: nil)
+  end
+
+  def trashed?
+    deleted_at.present?
+  end
+
+  # 完全に削除される日時
+  def purge_at
+    deleted_at && deleted_at + TRASH_RETENTION
+  end
 
   # タグ名の配列で付け替える（存在しないタグは作成する）
   # 保存済みの教材では代入した時点で中間テーブルが更新されるため、

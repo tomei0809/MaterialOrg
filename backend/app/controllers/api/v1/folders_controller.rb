@@ -3,9 +3,9 @@ module Api
     class FoldersController < ApplicationController
       # GET /api/v1/folders
       # 中身が空のフォルダも含めて並び順（position → 名前）で返す（階層は parent_id で表す）
-      # materials_count はそのフォルダ直下の教材数（サブフォルダの分は含まない）
+      # materials_count はそのフォルダ直下の教材数（サブフォルダとゴミ箱の分は含まない）
       def index
-        folders = Folder.left_joins(:materials)
+        folders = Folder.joins("LEFT JOIN materials ON materials.folder_id = folders.id AND materials.deleted_at IS NULL")
                         .group(:id)
                         .select("folders.*, COUNT(materials.id) AS materials_count")
                         .ordered
@@ -41,7 +41,7 @@ module Api
         folder = Folder.find(params[:id])
 
         if folder.update(folder_params)
-          render json: folder_json(folder, folder.materials.count), status: :ok
+          render json: folder_json(folder, folder.materials.kept.count), status: :ok
         else
           render json: { errors: folder.errors.full_messages }, status: :unprocessable_entity
         end
