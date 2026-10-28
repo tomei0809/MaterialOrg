@@ -1,13 +1,14 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
-one:
-  title: MyString
-  subject: MyString
-  material_type: MyString
-  description: MyText
+math_slide:
+  title: 情報数学 第1回
+  material_type: slide
+  description: 集合と論理
+  folder: first_year
+  bundle: math_slides
+  bundle_position: 0
 
-two:
-  title: MyString
-  subject: MyString
-  material_type: MyString
-  description: MyText
+programming_exam:
+  title: プログラミング言語A 過去問
+  material_type: past_exam
+  description:

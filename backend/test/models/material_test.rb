@@ -1,7 +1,91 @@
 require "test_helper"
 
 class MaterialTest < ActiveSupport::TestCase
-  # test "the truth" do
-  #   assert true
-  # end
+  test "必須項目がないと無効" do
+    material = Material.new
+
+    assert_not material.valid?
+    assert_includes material.errors.attribute_names, :title
+    assert_includes material.errors.attribute_names, :material_type
+  end
+
+  test "対応している形式のファイルは添付できる（大文字の拡張子も可）" do
+    %w[lecture.MP4 voice.mp3 photo.JPEG main.py notebook.ipynb project.zip].each do |name|
+      material = materials(:math_slide)
+      material.file.attach(io: StringIO.new("data"), filename: name)
+
+      assert material.valid?, "#{name}: #{material.errors.full_messages}"
+    end
+  end
+
+  test "対応していない形式・拡張子なしのファイルは添付できない" do
+    %w[setup.exe virus.scr noextension].each do |name|
+      material = materials(:math_slide)
+      material.file.attach(io: StringIO.new("data"), filename: name)
+
+      assert_not material.valid?, name
+      assert_match "アップロードできません", material.errors.full_messages.join
+    end
+  end
+
+  test "上限サイズを超えるファイルは添付できない" do
+    # 保存済みのレコードに attach するとその場で保存されるため、未保存のレコードで確認する
+    material = Material.new(title: "a", material_type: "other")
+    material.file.attach(io: StringIO.new("data"), filename: "big.mp4")
+    material.file.blob.byte_size = Material::MAX_FILE_SIZE + 1
+
+    assert_not material.valid?
+    assert_match "MB以下", material.errors.full_messages.join
+  end
+
+  test "教材の種類は定義済みの値のみ" do
+    material = materials(:math_slide)
+    material.material_type = "unknown"
+
+    assert_not material.valid?
+  end
+
+  test "tag_names で既存タグの再利用と新規作成ができる" do
+    material = materials(:math_slide)
+
+    assert_difference "Tag.count", 1 do
+      material.update!(tag_names: [ "試験対策", "重要" ])
+    end
+
+    assert_equal %w[試験対策 重要].sort, material.reload.tag_names.sort
+  end
+
+  test "tag_names は前後の空白・空文字・重複・全角英数を整える" do
+    material = materials(:math_slide)
+    material.update!(tag_names: [ " 復習用 ", "", "復習用", "ＡＢＣ" ])
+
+    assert_equal %w[ABC 復習用].sort, material.reload.tag_names.sort
+  end
+
+  test "空の配列でタグをすべて外せる" do
+    material = materials(:math_slide)
+    material.update!(tag_names: [ "" ])
+
+    assert_empty material.reload.tags
+  end
+
+  test "タグが多すぎる・長すぎると無効で、既存のタグは変わらない" do
+    material = materials(:math_slide)
+
+    material.tag_names = (1..11).map { |i| "タグ#{i}" }
+    assert_not material.valid?
+
+    material.tag_names = [ "あ" * 31 ]
+    assert_not material.valid?
+
+    assert_equal [ "復習用" ], material.reload.tag_names
+  end
+
+  test "削除すると中間テーブルも消えるがタグ自体は残る" do
+    assert_difference [ "MaterialTag.count" ], -1 do
+      assert_no_difference "Tag.count" do
+        materials(:math_slide).destroy!
+      end
+    end
+  end
 end

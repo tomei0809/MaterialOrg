@@ -1,0 +1,15 @@
+first_year:
+  name: 1年前期
+  color: blue
+  position: 0
+
+exam:
+  name: 試験まとめ
+  color: red
+  position: 1
+
+math:
+  name: 情報数学
+  color: green
+  parent: first_year
+  position: 0

@@ -1,0 +1,7 @@
+math_slide_review:
+  material: math_slide
+  tag: review
+
+programming_exam_prep:
+  material: programming_exam
+  tag: exam_prep
