@@ -1,1 +1,35 @@
+# リポジトリ全体で除外するファイル
+# （backend/ と frontend/ には、それぞれのフレームワーク向けの .gitignore もある）
+
+# ---- 秘密情報 ----
+# 環境変数ファイル（見本の .env.example だけは残す）
+.env
+.env.*
+!.env.example
+# Rails の credentials を開く鍵・証明書・鍵ファイル
+*.key
+*.pem
+*.p12
+# Kamal のデプロイ用シークレット
 backend/.kamal/secrets
+
+# ---- 依存パッケージ・生成物 ----
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+backend/vendor/bundle/
+
+# ---- ログ ----
+*.log
+npm-debug.log*
+
+# ---- OS・エディタ ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
