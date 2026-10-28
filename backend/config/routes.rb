@@ -8,7 +8,19 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
-      resources :materials, only: %i[index create update destroy]
+      resources :materials, only: %i[index create update destroy] do
+        patch :move, on: :collection
+        patch :assign_bundle, on: :collection
+        patch :favorite, on: :collection
+        patch :opened, on: :member
+      end
+      resources :bundles, only: %i[index create update destroy] do
+        patch :reorder, on: :member
+      end
+      resources :tags, only: %i[index]
+      resources :folders, only: %i[index create update destroy] do
+        patch :arrange, on: :collection
+      end
     end
   end
   # Defines the root path route ("/")

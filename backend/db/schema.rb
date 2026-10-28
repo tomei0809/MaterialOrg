@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_064836) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -42,15 +42,62 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_064836) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
-  create_table "materials", force: :cascade do |t|
-    t.string "title"
-    t.string "subject"
-    t.string "material_type"
-    t.text "description"
+  create_table "bundles", force: :cascade do |t|
+    t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
+  create_table "folders", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "color", default: "blue", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "parent_id"
+    t.integer "position", default: 0, null: false
+    t.index ["parent_id", "name"], name: "index_folders_on_parent_id_and_name", unique: true, nulls_not_distinct: true
+    t.index ["parent_id"], name: "index_folders_on_parent_id"
+  end
+
+  create_table "material_tags", force: :cascade do |t|
+    t.bigint "material_id", null: false
+    t.bigint "tag_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["material_id", "tag_id"], name: "index_material_tags_on_material_id_and_tag_id", unique: true
+    t.index ["material_id"], name: "index_material_tags_on_material_id"
+    t.index ["tag_id"], name: "index_material_tags_on_tag_id"
+  end
+
+  create_table "materials", force: :cascade do |t|
+    t.string "title"
+    t.string "material_type"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "folder_id"
+    t.bigint "bundle_id"
+    t.integer "bundle_position"
+    t.datetime "favorited_at"
+    t.datetime "last_opened_at"
+    t.index ["bundle_id"], name: "index_materials_on_bundle_id"
+    t.index ["favorited_at"], name: "index_materials_on_favorited_at"
+    t.index ["folder_id"], name: "index_materials_on_folder_id"
+    t.index ["last_opened_at"], name: "index_materials_on_last_opened_at"
+  end
+
+  create_table "tags", force: :cascade do |t|
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_tags_on_name", unique: true
+  end
+
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "folders", "folders", column: "parent_id"
+  add_foreign_key "material_tags", "materials"
+  add_foreign_key "material_tags", "tags"
+  add_foreign_key "materials", "bundles", on_delete: :nullify
+  add_foreign_key "materials", "folders", on_delete: :nullify
 end
