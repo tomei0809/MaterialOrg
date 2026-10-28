@@ -1,26 +1,196 @@
 @import "tailwindcss";
 
+/* Tailwind の dark: をブラウザ設定ではなくアプリの表示設定（data-theme）に従わせる */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * 色はここで一元管理する（Tailwind では bg-surface / text-muted のように使える）
+ * <html> の data-theme / data-accent / data-sidebar は lib/preferences.ts が設定する
+ */
+
+/* ---- ライトテーマ（既定）---- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 紙・面・罫・墨 */
+  --background: #f4f6f8;
+  --foreground: #1c2430;
+  --surface: #ffffff;
+  --surface-muted: #eef1f4;
+  --border: #d5dbe3;
+  --muted: #5b6676;
+  --primary: #2f5da8;
+  --primary-hover: #244a88;
+  --primary-soft: #e5ecf7;
+  --primary-foreground: #ffffff;
+  --danger: #b8322f;
+  --danger-soft: #fbe9e8;
+  --success: #2f7d4f;
+  --success-soft: #e4f2ea;
+  /* サイドバー：濃い色（既定） */
+  --sidebar: #1f2733;
+  --sidebar-foreground: #dfe4eb;
+  --sidebar-muted: #8b95a5;
+  --sidebar-hover: #29323f;
+  --sidebar-border: #333d4b;
+  --sidebar-active: color-mix(in srgb, var(--primary) 32%, var(--sidebar));
+  --sidebar-active-foreground: #ffffff;
+
+  /* フォルダの色（インデックスタブ10色）。Folder::COLORS / FOLDER_COLORS と同じ名前。lib/folderColors.ts から使う */
+  --fc-blue: #2f5da8; /* 藍 */
+  --fc-green: #2f9468; /* 若竹 */
+  --fc-yellow: #c99400; /* 山吹 */
+  --fc-red: #c23a55; /* 紅 */
+  --fc-purple: #7657b0; /* 藤 */
+  --fc-teal: #14889a; /* 浅葱 */
+  --fc-orange: #c9612a; /* 柿 */
+  --fc-olive: #6f7f25; /* 鶯 */
+  --fc-pink: #a3646f; /* 桜鼠 */
+  --fc-gray: #5f6b7a; /* 鈍 */
+}
+
+/* ---- ダークテーマ ---- */
+:root[data-theme="dark"] {
+  --background: #141920;
+  --foreground: #e3e8ee;
+  --surface: #1b212a;
+  --surface-muted: #232a35;
+  --border: #323b48;
+  --muted: #98a3b3;
+  --primary: #7ea3e0;
+  --primary-hover: #a0bcea;
+  --primary-soft: #22304a;
+  --primary-foreground: #0f1520;
+  --danger: #ec7b76;
+  --danger-soft: #3b2222;
+  --success: #6cc794;
+  --success-soft: #1b3326;
+  --sidebar: #10151c;
+  --sidebar-foreground: #d5dbe3;
+  --sidebar-muted: #7c8696;
+  --sidebar-hover: #1a212b;
+  --sidebar-border: #262e3a;
+
+  /* 暗い背景でも見分けやすいよう明度を上げる */
+  --fc-blue: #6f97dc;
+  --fc-green: #5cc093;
+  --fc-yellow: #e5b937;
+  --fc-red: #e06b84;
+  --fc-purple: #a48ad8;
+  --fc-teal: #4cbccc;
+  --fc-orange: #e8915d;
+  --fc-olive: #a7b85a;
+  --fc-pink: #cf97a1;
+  --fc-gray: #9aa5b4;
+}
+
+/* ---- アクセントカラー（青は既定値のまま）---- */
+:root[data-accent="green"] {
+  --primary: #15803d;
+  --primary-hover: #166534;
+  --primary-soft: #e3f4e9;
+}
+:root[data-theme="dark"][data-accent="green"] {
+  --primary: #4ade80;
+  --primary-hover: #86efac;
+  --primary-soft: #14301f;
+  --primary-foreground: #06150c;
+}
+:root[data-accent="purple"] {
+  --primary: #6d3fd1;
+  --primary-hover: #5a2fb5;
+  --primary-soft: #efe9fc;
+}
+:root[data-theme="dark"][data-accent="purple"] {
+  --primary: #a78bfa;
+  --primary-hover: #c4b5fd;
+  --primary-soft: #2a2047;
+  --primary-foreground: #120a24;
+}
+:root[data-accent="orange"] {
+  --primary: #c2410c;
+  --primary-hover: #9a3412;
+  --primary-soft: #fdeee4;
+}
+:root[data-theme="dark"][data-accent="orange"] {
+  --primary: #fb923c;
+  --primary-hover: #fdba74;
+  --primary-soft: #3a2414;
+  --primary-foreground: #1a0d04;
+}
+:root[data-accent="pink"] {
+  --primary: #be185d;
+  --primary-hover: #9d174d;
+  --primary-soft: #fce7f1;
+}
+:root[data-theme="dark"][data-accent="pink"] {
+  --primary: #f472b6;
+  --primary-hover: #f9a8d4;
+  --primary-soft: #3a1629;
+  --primary-foreground: #1f0612;
+}
+
+/* ---- サイドバー：背景になじむ明るい色 ---- */
+:root[data-sidebar="light"] {
+  --sidebar: #e9edf1;
+  --sidebar-foreground: #263040;
+  --sidebar-muted: #66717f;
+  --sidebar-hover: #dde3e9;
+  --sidebar-border: #d5dbe3;
+  --sidebar-active: var(--primary-soft);
+  --sidebar-active-foreground: var(--primary);
+}
+:root[data-theme="dark"][data-sidebar="light"] {
+  --sidebar: #131a25;
+  --sidebar-foreground: #d5ddeb;
+  --sidebar-muted: #7d8aa0;
+  --sidebar-hover: #1b2432;
+  --sidebar-border: #232d3b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-foreground: var(--sidebar-active-foreground);
+  --font-sans: var(--font-ui), "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* 角丸は2段階だけ：操作部品（ボタン・入力欄・バッジ）4px、パネル（表・ダイアログ）6px */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 6px;
+  /* 一覧やパネルに影は付けない（右パネル・ダイアログ・通知の shadow-lg 以上だけ残す） */
+  --shadow-sm: none;
+  --shadow-md: none;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "palt";
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
 }
