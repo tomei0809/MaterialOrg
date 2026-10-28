@@ -3,7 +3,12 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [ master ]
+    branches: [ main ]
+
+# Railsアプリは backend/ 配下にあるため、run ステップはすべてそこで実行する
+defaults:
+  run:
+    working-directory: backend
 
 jobs:
   scan_ruby:
@@ -16,14 +21,15 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
+          working-directory: backend
           bundler-cache: true
 
       - name: Scan for common Rails security vulnerabilities using static analysis
-        run: bin/brakeman --no-pager
-      
+        run: ruby bin/brakeman --no-pager
+
       - name: Scan for known security vulnerabilities in gems used
-        run: bin/bundler-audit
-      
+        run: ruby bin/bundler-audit
+
   lint:
     runs-on: ubuntu-latest
     env:
@@ -35,20 +41,21 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
+          working-directory: backend
           bundler-cache: true
 
       - name: Prepare RuboCop cache
         uses: actions/cache@v4
         env:
-          DEPENDENCIES_HASH: ${{ hashFiles('.ruby-version', '**/.rubocop.yml', '**/.rubocop_todo.yml', 'Gemfile.lock') }}
+          DEPENDENCIES_HASH: ${{ hashFiles('backend/.ruby-version', 'backend/**/.rubocop.yml', 'backend/**/.rubocop_todo.yml', 'backend/Gemfile.lock') }}
         with:
-          path: ${{ env.RUBOCOP_CACHE_ROOT }}
+          path: backend/${{ env.RUBOCOP_CACHE_ROOT }}
           key: rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || 'default' }}
           restore-keys: |
             rubocop-${{ runner.os }}-${{ env.DEPENDENCIES_HASH }}-
 
       - name: Lint code for consistent style
-        run: bin/rubocop -f github
+        run: ruby bin/rubocop -f github
 
   test:
     runs-on: ubuntu-latest
@@ -72,6 +79,7 @@ jobs:
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpq-dev libvips
+        working-directory: .
 
       - name: Checkout code
         uses: actions/checkout@v6
@@ -79,6 +87,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
+          working-directory: backend
           bundler-cache: true
 
       - name: Run tests
@@ -87,4 +96,4 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
           # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           # REDIS_URL: redis://localhost:6379/0
-        run: bin/rails db:test:prepare test
+        run: ruby bin/rails db:test:prepare test
