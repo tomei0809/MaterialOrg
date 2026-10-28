@@ -86,7 +86,7 @@ export function BulkActionBar({
 
       <div className="ml-auto flex gap-2">
         <Button variant="danger" onClick={onDelete} disabled={busy} className="py-1.5">
-          まとめて削除
+          ゴミ箱へ移動
         </Button>
         <Button variant="secondary" onClick={onClear} disabled={busy} className="py-1.5">
           選択を解除

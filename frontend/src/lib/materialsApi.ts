@@ -127,12 +127,38 @@ export async function moveMaterials(ids: number[], folderId: number | null) {
   return parseResponse<{ moved: number }>(response, '教材を移動できませんでした。');
 }
 
+// 教材をゴミ箱へ移す（30日間は restoreMaterials で元に戻せる）
 export async function deleteMaterial(id: number): Promise<void> {
   const response = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE' });
 
   if (!response.ok) {
-    throw new Error('教材を削除できませんでした。');
+    throw new Error('教材をゴミ箱へ移動できませんでした。');
   }
+}
+
+// ゴミ箱の教材（削除した日時の新しい順）
+export async function fetchTrash(): Promise<Material[]> {
+  const response = await fetch(`${BASE_URL}/trash`, { cache: 'no-store' });
+  return parseResponse<Material[]>(response, 'ゴミ箱を読み込めませんでした。');
+}
+
+export async function restoreMaterials(ids: number[]) {
+  const response = await fetch(`${BASE_URL}/restore`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
+  return parseResponse<{ restored: number }>(response, '教材を元に戻せませんでした。');
+}
+
+// ゴミ箱の教材を完全に削除する（'all' はゴミ箱を空にする）。元に戻せない
+export async function purgeMaterials(ids: number[] | 'all') {
+  const response = await fetch(`${BASE_URL}/purge`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ids === 'all' ? { all: true } : { ids }),
+  });
+  return parseResponse<{ purged: number }>(response, '教材を完全に削除できませんでした。');
 }
 
 // 教材に使われているタグ（使用数の多い順）

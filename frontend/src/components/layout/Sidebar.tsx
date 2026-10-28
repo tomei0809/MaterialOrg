@@ -72,6 +72,10 @@ type Props = {
   // 展開したフォルダの教材名：クリックで詳細、ダブルクリックでビューア
   onOpenMaterial: (material: Material) => void;
   onOpenViewer: (material: Material) => void;
+  // ゴミ箱：件数・開く・教材をドロップしてゴミ箱へ移す
+  trashCount: number;
+  onOpenTrash: () => void;
+  onDropToTrash: (ids: number[]) => void;
 };
 
 // フォルダをドラッグ中に、どこへ何をしようとしているか（targetId が null は最上位の末尾）
@@ -306,6 +310,24 @@ function Item({
 const FILE_LIMIT = 50;
 const titleOrder = new Intl.Collator('ja', { numeric: true });
 
+// ゴミ箱の形（線画）
+function TrashGlyph({ className }: { className: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+    >
+      <path d="M4 7h16M9.5 7V4.5h5V7M6 7l1 13h10l1-13M10 11v5.5M14 11v5.5" />
+    </svg>
+  );
+}
+
 const iconButton =
   'rounded px-1.5 text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground';
 
@@ -424,6 +446,9 @@ export function Sidebar({
   activeMaterialId,
   onOpenMaterial,
   onOpenViewer,
+  trashCount,
+  onOpenTrash,
+  onDropToTrash,
 }: Props) {
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   // ドラッグ中のフォルダ（dragover 中は dataTransfer の中身を読めないため、ここで覚えておく）
@@ -624,6 +649,15 @@ export function Sidebar({
                 <path d="M4 13.5h4.5l1 2h5l1-2H20" />
               </>,
             )}
+          />
+          <RailItem
+            label="ゴミ箱"
+            count={trashCount}
+            onClick={onOpenTrash}
+            dropKey="trash"
+            onDropIds={onDropToTrash}
+            {...railDrop}
+            icon={<TrashGlyph className="size-5" />}
           />
 
           <hr className="mx-2 my-1.5 border-sidebar-border" />
@@ -918,6 +952,17 @@ export function Sidebar({
               {...dropProps}
             >
               未分類
+            </Item>
+            <Item
+              active={false}
+              count={trashCount}
+              onClick={onOpenTrash}
+              dropKey="trash"
+              onDropIds={onDropToTrash}
+              {...dropProps}
+            >
+              <TrashGlyph className="size-3.5" />
+              ゴミ箱
             </Item>
           </Section>
 

@@ -13,6 +13,7 @@ import {
 import { BundleDialog } from '@/components/bundles/BundleDialog';
 import { FolderDialog } from '@/components/folders/FolderDialog';
 import { SettingsDialog } from '@/components/layout/SettingsDialog';
+import { TrashDialog } from './TrashDialog';
 import { DRAG_TYPE, Sidebar } from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/Button';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
@@ -42,6 +43,8 @@ import {
   arrangeFolders,
   assignBundle,
   deleteMaterial,
+  fetchTrash,
+  restoreMaterials,
   markOpened,
   moveMaterials,
   setFavorite,
@@ -94,7 +97,12 @@ import { Toolbar } from './Toolbar';
 import { TypeTabs } from './TypeTabs';
 import { titleFromFileName, UploadQueueDialog } from './UploadQueueDialog';
 
-type Notice = { type: 'success' | 'error'; text: string } | null;
+// action：通知の中のボタン（ゴミ箱へ移したときの「元に戻す」など）
+type Notice = {
+  type: 'success' | 'error';
+  text: string;
+  action?: { label: string; onClick: () => void };
+} | null;
 
 // 右パネルの表示内容（create の file は画面にドロップされたファイル）
 type Panel =
@@ -151,6 +159,9 @@ export function MaterialsApp() {
   const [folderDialog, setFolderDialog] = useState<FolderDialogState>(null);
   const [bundleDialog, setBundleDialog] = useState<BundleDialogState>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // ゴミ箱のダイアログと、サイドバーに出す件数
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashCount, setTrashCount] = useState(0);
   // スマホ表示でサイドバーを重ねて開いているか（PC の折りたたみは preferences に保存）
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // サイドバーのツリーで開いているフォルダ／一覧のトグルで開いているフォルダ
@@ -203,7 +214,8 @@ export function MaterialsApp() {
   // 通知は数秒で自動的に消す
   useEffect(() => {
     if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(null), 4000);
+    // 「元に戻す」のボタンがあるときは押す時間を長めに取る
+    const timer = window.setTimeout(() => setNotice(null), notice.action ? 8000 : 4000);
     return () => window.clearTimeout(timer);
   }, [notice]);
 
@@ -344,7 +356,7 @@ export function MaterialsApp() {
     material_type: filters.type !== 'all' ? filters.type : 'slide',
   };
   const overlayOpen = Boolean(
-    panel || folderDialog || bundleDialog || settingsOpen || queuedFiles || viewerId !== null,
+    panel || folderDialog || bundleDialog || settingsOpen || trashOpen || queuedFiles || viewerId !== null,
   );
 
   // キー操作：「/」で検索欄へ、「N」で新規登録（入力中やダイアログ表示中は無効）
@@ -373,6 +385,10 @@ export function MaterialsApp() {
         event.preventDefault();
         const targets = materials.filter((m) => selectedVisible.has(m.id));
         void handleToggleFavorite(targets);
+      } else if (event.key === 'Delete' && selectedVisible.size > 0) {
+        // 選択中の教材をゴミ箱へ（通知の「元に戻す」で取り消せる）
+        event.preventDefault();
+        void handleDelete(materials.filter((m) => selectedVisible.has(m.id)));
       } else if (event.key === 'F2' && selectedVisible.size === 1) {
         // 選択中の教材1件の名前をその場で変更
         event.preventDefault();
@@ -484,8 +500,21 @@ export function MaterialsApp() {
 
   // 教材・フォルダ・まとめをまとめて再取得する（件数がすべてに関係するため）
   async function reloadAll() {
-    await Promise.all([reload(), reloadFolders(), reloadBundles()]);
+    await Promise.all([reload(), reloadFolders(), reloadBundles(), refreshTrashCount()]);
   }
+
+  // サイドバーの「ゴミ箱」の件数（読み込めなくても画面は止めない）
+  async function refreshTrashCount() {
+    try {
+      setTrashCount((await fetchTrash()).length);
+    } catch {
+      // 件数は出せなくてもゴミ箱は開ける
+    }
+  }
+
+  useEffect(() => {
+    void refreshTrashCount();
+  }, []);
 
   function showError(err: unknown) {
     setNotice({
@@ -509,17 +538,24 @@ export function MaterialsApp() {
     }
   }
 
+  // 教材をゴミ箱へ移す（確認は出さず、通知の「元に戻す」で取り消せるようにする）
   async function handleDelete(targets: Material[]) {
-    const message =
-      targets.length === 1
-        ? `「${targets[0].title}」を削除しますか？\nこの操作は取り消せません。`
-        : `選択した${targets.length}件の教材を削除しますか？\nこの操作は取り消せません。`;
-    if (!window.confirm(message)) return;
-
+    if (targets.length === 0) return;
     setBusy(true);
+    const trashed: number[] = [];
     try {
-      for (const material of targets) await deleteMaterial(material.id);
-      setNotice({ type: 'success', text: `${targets.length}件の教材を削除しました。` });
+      for (const material of targets) {
+        await deleteMaterial(material.id);
+        trashed.push(material.id);
+      }
+      setNotice({
+        type: 'success',
+        text:
+          targets.length === 1
+            ? `「${targets[0].title}」をゴミ箱へ移動しました。`
+            : `${targets.length}件をゴミ箱へ移動しました。`,
+        action: { label: '元に戻す', onClick: () => void handleRestore(trashed) },
+      });
       setSelectedIds(new Set());
       if (panel && panel.mode !== 'create' && targets.some((m) => m.id === panel.id)) {
         setPanel(null);
@@ -528,6 +564,20 @@ export function MaterialsApp() {
       showError(err);
     } finally {
       // 途中で失敗しても、削除できた分を反映する
+      await reloadAll();
+      setBusy(false);
+    }
+  }
+
+  async function handleRestore(ids: number[]) {
+    setNotice(null);
+    setBusy(true);
+    try {
+      const { restored } = await restoreMaterials(ids);
+      setNotice({ type: 'success', text: `${restored}件を元に戻しました。` });
+    } catch (err) {
+      showError(err);
+    } finally {
       await reloadAll();
       setBusy(false);
     }
@@ -839,7 +889,8 @@ export function MaterialsApp() {
         onSelect: () => single && setPanel({ mode: 'edit', id: single.id }),
       },
       {
-        label: '削除…',
+        label: 'ゴミ箱へ移動',
+        hint: 'Delete',
         danger: true,
         onSelect: () => void handleDelete(targets),
       },
@@ -1011,6 +1062,12 @@ export function MaterialsApp() {
           setSettingsOpen(true);
         }}
         activeMaterialId={panel?.mode === 'detail' ? panel.id : null}
+        trashCount={trashCount}
+        onOpenTrash={() => {
+          setSidebarOpen(false);
+          setTrashOpen(true);
+        }}
+        onDropToTrash={(ids) => void handleDelete(materials.filter((m) => ids.includes(m.id)))}
         onOpenMaterial={(material) => {
           setSidebarOpen(false);
           openDetail(material);
@@ -1306,6 +1363,15 @@ export function MaterialsApp() {
           }`}
         >
           {notice.text}
+          {notice.action && (
+            <button
+              type="button"
+              onClick={notice.action.onClick}
+              className="shrink-0 rounded px-1.5 font-bold underline underline-offset-2 hover:no-underline"
+            >
+              {notice.action.label}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setNotice(null)}
@@ -1496,6 +1562,18 @@ export function MaterialsApp() {
         })()}
 
       {settingsOpen && <SettingsDialog onClose={closeSettings} />}
+
+      {trashOpen && (
+        <TrashDialog
+          folderIndex={folderIndex}
+          onClose={() => setTrashOpen(false)}
+          onChanged={async (message) => {
+            setNotice({ type: 'success', text: message });
+            await reloadAll();
+          }}
+          onError={showError}
+        />
+      )}
 
       {queuedFiles && (
         <UploadQueueDialog

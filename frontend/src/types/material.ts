@@ -43,6 +43,9 @@ export type Material = {
   favorited_at?: string | null;
   // 最後に開いた日時（「最近使った資料」。null はまだ開いていない）
   last_opened_at?: string | null;
+  // ゴミ箱に入れた日時と、完全に削除される日時（ゴミ箱の教材だけ）
+  deleted_at?: string | null;
+  purge_at?: string | null;
 };
 
 // 登録・編集フォームの入力値

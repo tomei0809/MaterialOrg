@@ -154,8 +154,8 @@ export function MaterialDetail({
       </div>
 
       <div className="sticky bottom-0 flex gap-2 border-t border-border bg-surface px-5 py-3">
-        <Button variant="danger" onClick={() => onDelete(material)}>
-          削除
+        <Button variant="danger" onClick={() => onDelete(material)} title="ゴミ箱へ移動（30日間は元に戻せます）">
+          ゴミ箱へ
         </Button>
         <Button onClick={() => onEdit(material)} className="flex-1">
           編集する
