@@ -8,6 +8,18 @@
                                                                       └──────────────▶ Amazon S3（非公開バケット）
 ```
 
+## 今の本番環境（2026-10-29 に公開）
+
+| 役割 | 場所 |
+|---|---|
+| 画面（Vercel） | https://material-organization.vercel.app |
+| API（Render・Web Service・Free・Singapore） | https://materialorg-api.onrender.com（サービス名 `materialorg-api`） |
+| DB | Neon（Singapore）。DB 名は既定の `neondb`（cache・queue・cable は `neondb_cache` などが自動で作られた） |
+| ファイル | Amazon S3（東京） |
+| CI | GitHub Actions（`main` への push ごとに backend・frontend を検査） |
+
+`main` に push すると、Render と Vercel が自動で再デプロイする。
+
 コード側の準備は済んでいる。
 
 | ファイル | 内容 |
@@ -155,7 +167,7 @@ Render の画面で **New → Web Service** から作る（Blueprint は使わ�
 | `MAX_USERS` | `10`（新規登録できる人数の上限。増やすときはここを変える） |
 | `APP_URL` | Vercel の URL（例 `https://material-organization.vercel.app`。末尾の `/` なし。再設定のメールのリンクに使う） |
 | `BREVO_API_KEY` | 6. で作る Brevo の API キー（後から入れてよい） |
-| `MAIL_FROM` | 6. で確認した送信元（例 `MaterialOrg <you@example.com>`） |
+| `MAIL_FROM` | 6. で確認した送信元（入力の形は 6.3） |
 
 `APP_HOST` は URL が決まってから 5. で入れる。
 
@@ -215,11 +227,40 @@ materialorg-api.onrender.com,material-organization.vercel.app
 パスワードを忘れたときの再設定のリンクを、Brevo（https://www.brevo.com）の API で送る。
 Render の無料プランは SMTP のポート（25・465・587）を使えないため、HTTPS で送れる Brevo を使う。無料プランは1日300通まで。
 
+### 6.1 送信元のアドレスを確認する
+
 1. Brevo に無料で登録する
-2. **Senders, Domains & Dedicated IPs → Senders** →「Add a sender」で送信元のメールアドレスを登録し、届いた確認メールのリンクを開く
+2. **Senders, Domains & Dedicated IPs → Senders** →「Add a sender」で送信元のメールアドレスを登録し、届いた確認メールのリンクを開く（状態が Verified になる）
    - 独自ドメインがない場合は、自分の Gmail などのアドレスでよい。ただし受け取り側で迷惑メールに入りやすいので、初めて使う人には迷惑メールのフォルダも確かめてもらう
-3. **SMTP & API → API Keys** →「Generate a new API key」でキーを作って控える（`xkeysib-` で始まる）
-4. Render の **Environment** に `BREVO_API_KEY`（3. のキー）と `MAIL_FROM`（2. のアドレス。例 `MaterialOrg <you@example.com>`）、`APP_URL`（Vercel の URL）を入れて保存する
+
+### 6.2 API キーを作る
+
+1. 右上のアカウント名 → **SMTP & API** → **API Keys** タブ →「**Generate a new API key**」
+2. **API key name** に用途の分かる名前を入れる（例 `materialorg-render`）
+   - 種類を選ぶ画面が出たら、**SMTP key ではなく API key** を選ぶ（アプリは HTTPS の API で送るため）
+3. 「Generate」で表示されたキー（`xkeysib-` で始まる）をすぐにコピーする。全体が見られるのはこの画面だけ。チャットやリポジトリには貼らない
+4. **IP の制限を確かめる**：右上のアカウント名 → **Security** → **Authorised IPs**
+   - 登録した IP 以外からの API の利用を止める設定が有効だと、Render からの送信が拒否される（Render の無料プランは送信元の IP が決まっていない）
+   - 制限を無効にするか、Render の `materialorg-api` の **Connect → Outbound** に出ている IP の範囲をすべて登録する
+
+### 6.3 Render に入れる
+
+Render の `materialorg-api` → **Environment** で3つを入れ、「Save Changes」を押す（自動で再デプロイされる）。
+
+| Key | Value |
+|---|---|
+| `BREVO_API_KEY` | 6.2 でコピーしたキー |
+| `MAIL_FROM` | `MaterialOrg <確認したアドレス>`（例 `MaterialOrg <taro@gmail.com>`） |
+| `APP_URL` | `https://material-organization.vercel.app`（末尾の `/` なし） |
+
+`MAIL_FROM` の入れ方：
+- アドレスは 6.1 で Verified になったものと完全に同じにする（違うと送信が拒否される）
+- アドレスを半角の `<` `>` で囲む。`"` や `'` は付けない
+- `MaterialOrg` の部分は受け取った人に表示される差出人の名前。好きな名前でよい。アドレスだけ（`taro@gmail.com`）でも送れる（差出人の名前は MaterialOrg になる）
+
+### 6.4 確かめる
+
+再デプロイが終わったら、ログイン画面の「パスワードを忘れた方」で自分のアドレスを入れ、メールが届くこと（迷惑メールのフォルダも）、リンクから新しいパスワードを設定できることを確かめる。
 
 > `BREVO_API_KEY` が空のときは、メールは送られず捨てられる（再設定の画面は「送りました」と表示される）。
 
@@ -257,7 +298,7 @@ Render の無料プランは SMTP のポート（25・465・587）を使えな�
 | 大きなファイルだけ失敗（413 など） | Vercel の転送経路の上限。小さなファイルで運用するか、[本番環境ガイド](deployment-guide.pdf) 7.3 の「S3 への直接アップロード」を実装する |
 | Render が `Out of memory` で再起動する | 無料プランは 512MB。Environment で `RAILS_MAX_THREADS` を 2 に下げる。続くなら Settings の Instance Type を有料（Starter 以上）に変える |
 | ログインしてもすぐログイン画面に戻る | Rails の本番は Cookie を `Secure` で付ける。Vercel の URL が `https://` か、Render の `APP_HOST` に Vercel のホスト名が入っているか（403 になっていないか） |
-| 再設定のメールが届かない | Render の Logs で `Brevo へのメール送信に失敗しました` を探す。`BREVO_API_KEY`・`MAIL_FROM`（Brevo で確認済みの送信元か）。迷惑メールのフォルダも確かめる |
+| 再設定のメールが届かない | Render の Logs で `Brevo へのメール送信に失敗しました` を探す。`401`・`unrecognised IP` なら 6.2 の Authorised IPs、`sender` を含む誤りなら `MAIL_FROM` が Verified のアドレスと同じか、キーの誤りなら `BREVO_API_KEY`。ログに何も出なければ `BREVO_API_KEY` が空。迷惑メールのフォルダも確かめる |
 | 新規登録で「上限に達している」 | Render の Environment で `MAX_USERS` を増やす |
 | Neon の容量・計算時間の警告 | Neon の Dashboard → Usage。ゴミ箱を空にする、古い教材を整理する。足りなければ Neon の有料プラン |
 

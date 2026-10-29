@@ -144,4 +144,4 @@ npm run build
 | [テスト手順](docs/testing.md) | 自動テストと手動確認 |
 | [本番環境への移行手順](docs/deployment.md) | Vercel ＋ Render（無料）＋ Neon ＋ S3 で公開する手順と確認項目 |
 | [本番環境ガイド（PDF）](docs/deployment-guide.pdf) | デプロイ先の候補の比較と構築の考え方 |
-| [環境構築手順](docs/setup-guide.md) | 初期構築の記録 |
+| [環境構築手順](docs/setup-guide.md) | 開発環境の作り方・初めて使うとき・うまくいかないとき |
