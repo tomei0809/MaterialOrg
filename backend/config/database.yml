@@ -93,9 +93,17 @@ test:
 <%
   # cache・queue・cable の接続先：*_DATABASE_URL がなければ、DATABASE_URL の DB 名に接尾辞を付けて作る
   # （例 .../materialorg_production → .../materialorg_production_cache）。DB は起動時の db:prepare で作られる
+  # （このファイルはどの環境でも ERB として読まれるため、DB 名のない URL ではそのまま返す）
   derived_database_url = lambda do |suffix|
     ENV.fetch("#{suffix.upcase}_DATABASE_URL") do
-      ENV["DATABASE_URL"]&.sub(%r{/([^/?]+)(?=\?|\z)}) { "/#{Regexp.last_match(1)}_#{suffix}" }
+      url = ENV["DATABASE_URL"]
+      next url if url.blank?
+
+      uri = URI.parse(url)
+      next url if uri.path.to_s.delete_prefix("/").empty?
+
+      uri.path = "#{uri.path}_#{suffix}"
+      uri.to_s
     end
   end
 %>

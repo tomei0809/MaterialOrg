@@ -1,0 +1,2 @@
+# テスト用の添付ファイルは中身とサイズをそのまま比べるため、改行コードを変換しない
+backend/test/fixtures/files/** -text

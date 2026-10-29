@@ -36,7 +36,7 @@ bin/bundler-audit                   # 既知の脆弱性がある gem の検出
 ```bash
 cd frontend
 npm run lint        # ESLint（React Compiler のルールを含む）
-npm run typecheck   # TypeScript の型チェック（tsc --noEmit）
+npm run typecheck   # Next.js の型を生成（next typegen）してから TypeScript の型チェック（tsc --noEmit）
 npm run build       # 本番ビルド（ページの事前生成まで通ること）
 ```
 
