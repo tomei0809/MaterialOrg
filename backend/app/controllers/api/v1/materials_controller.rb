@@ -3,7 +3,7 @@ module Api
     class MaterialsController < ApplicationController
       # GET /api/v1/materials
       def index
-        materials = Material.kept
+        materials = Current.user.materials.kept
                             .includes(:tags, file_attachment: :blob)
                             .order(created_at: :desc)
 
@@ -40,7 +40,7 @@ module Api
 
       # POST /api/v1/materials
       def create
-        material = Material.new
+        material = Current.user.materials.new
 
         if save_in_transaction(material)
           render json: material_json(material), status: :created
@@ -53,7 +53,7 @@ module Api
 
       # PATCH /api/v1/materials/:id
       def update
-        material = Material.kept.find(params[:id])
+        material = Current.user.materials.kept.find(params[:id])
 
         if save_in_transaction(material)
           render json: material_json(material), status: :ok
@@ -67,15 +67,15 @@ module Api
       # DELETE /api/v1/materials/:id
       # ゴミ箱へ移す（TRASH_RETENTION のあいだは restore で元に戻せる）
       def destroy
-        Material.transaction { Material.kept.find(params[:id]).trash! }
+        Material.transaction { Current.user.materials.kept.find(params[:id]).trash! }
         head :no_content
       end
 
       # GET /api/v1/materials/trash
       # ゴミ箱の教材を、削除した日時の新しい順に返す。期限を過ぎたものはここでも消しておく
       def trash
-        Material.purge_expired
-        materials = Material.trashed
+        Current.user.materials.purge_expired
+        materials = Current.user.materials.trashed
                             .includes(:tags, file_attachment: :blob)
                             .order(deleted_at: :desc)
         render json: materials.map { |material| material_json(material) }
@@ -84,7 +84,7 @@ module Api
       # PATCH /api/v1/materials/restore
       # { ids } の教材をゴミ箱から元に戻す
       def restore
-        materials = Material.trashed.where(id: Array(params[:ids]).map(&:to_i))
+        materials = Current.user.materials.trashed.where(id: Array(params[:ids]).map(&:to_i))
         restored = materials.update_all(deleted_at: nil)
         render json: { restored: restored }
       end
@@ -92,7 +92,7 @@ module Api
       # DELETE /api/v1/materials/purge
       # { ids } または { all: true } で、ゴミ箱の教材を完全に削除する（元に戻せない）
       def purge
-        materials = Material.trashed
+        materials = Current.user.materials.trashed
         unless ActiveModel::Type::Boolean.new.cast(params[:all])
           materials = materials.where(id: Array(params[:ids]).map(&:to_i))
         end
@@ -106,13 +106,13 @@ module Api
         ids = Array(params[:ids]).map(&:to_i)
         folder_id = params[:folder_id].presence
 
-        if folder_id && !Folder.exists?(id: folder_id)
+        if folder_id && !Current.user.folders.exists?(id: folder_id)
           return render json: {
             errors: [ "移動先のフォルダが見つかりません" ]
           }, status: :unprocessable_entity
         end
 
-        moved = Material.kept.where(id: ids).update_all(folder_id: folder_id)
+        moved = Current.user.materials.kept.where(id: ids).update_all(folder_id: folder_id)
         render json: { moved: moved }
       end
 
@@ -120,10 +120,10 @@ module Api
       # 複数の教材をまとめに入れる（bundle_id が空ならまとめから外す）
       def assign_bundle
         # ゴミ箱の教材はまとめに入れない
-        ids = Material.kept_ids_in_order(params[:ids])
+        ids = Current.user.materials.kept_ids_in_order(params[:ids])
         bundle_id = params[:bundle_id].presence
 
-        if bundle_id && !Bundle.exists?(id: bundle_id)
+        if bundle_id && !Current.user.bundles.exists?(id: bundle_id)
           return render json: {
             errors: [ "まとめが見つかりません" ]
           }, status: :unprocessable_entity
@@ -131,7 +131,7 @@ module Api
 
         updated = Material.transaction do
           # まとめに入れるときは末尾に並べ、外すときは並び順も消す
-          count = bundle_id ? Bundle.find(bundle_id).append(ids) : Bundle.release(ids)
+          count = bundle_id ? Current.user.bundles.find(bundle_id).append(ids) : Bundle.release(ids)
           Bundle.remove_empty
           count
         end
@@ -143,7 +143,7 @@ module Api
       # 更新日（updated_at）は変えない（並び替えの「更新日順」に影響させないため）
       def favorite
         ids = Array(params[:ids]).map(&:to_i)
-        materials = Material.kept.where(id: ids)
+        materials = Current.user.materials.kept.where(id: ids)
         updated =
           if ActiveModel::Type::Boolean.new.cast(params[:favorite])
             # すでにお気に入りのものは、入れた日時をそのまま残す
@@ -157,7 +157,7 @@ module Api
       # PATCH /api/v1/materials/:id/opened
       # 教材を開いたことを記録する（「最近使った資料」）。更新日は変えない
       def opened
-        material = Material.kept.find(params[:id])
+        material = Current.user.materials.kept.find(params[:id])
         material.update_columns(last_opened_at: Time.current)
         render json: { id: material.id, last_opened_at: material.last_opened_at }
       end

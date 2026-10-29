@@ -56,6 +56,10 @@ Rails.application.configure do
   # Set host to be used by links generated in mailer templates.
   config.action_mailer.default_url_options = { host: "example.com" }
 
+  # パスワード再設定のメールは Brevo の API で送る（BREVO_API_KEY がなければ送らずに捨てる）
+  config.action_mailer.delivery_method = ENV["BREVO_API_KEY"].present? ? :brevo : :test
+  config.action_mailer.raise_delivery_errors = true
+
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
   # config.action_mailer.smtp_settings = {
   #   user_name: Rails.application.credentials.dig(:smtp, :user_name),

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::BundlesControllerTest < ActionDispatch::IntegrationTest
+  setup { sign_in_as users(:one) }
+
   test "一覧は教材数を返す" do
     get api_v1_bundles_url
     assert_response :success

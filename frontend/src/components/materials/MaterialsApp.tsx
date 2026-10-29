@@ -14,6 +14,7 @@ import { BundleDialog } from '@/components/bundles/BundleDialog';
 import { FolderDialog } from '@/components/folders/FolderDialog';
 import { SettingsDialog } from '@/components/layout/SettingsDialog';
 import { TrashDialog } from './TrashDialog';
+import type { CurrentUser } from '@/lib/authApi';
 import { DRAG_TYPE, Sidebar } from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/Button';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
@@ -145,7 +146,13 @@ const toggleInSet = <T,>(set: Set<T>, id: T) => {
 };
 
 // 教材管理画面のルート。サイドバー・タブ・一覧・右パネルの状態をまとめて持つ
-export function MaterialsApp() {
+type Props = {
+  // ログイン中の利用者（components/auth/AuthGate.tsx から渡す）
+  user: CurrentUser;
+  onLogout: () => void;
+};
+
+export function MaterialsApp({ user, onLogout }: Props) {
   const { materials, loading, error: loadError, loadedAt, reload, patchLocal } = useMaterials();
   const { folders, reload: reloadFolders } = useFolders();
   const { bundles, reload: reloadBundles } = useBundles();
@@ -1063,6 +1070,8 @@ export function MaterialsApp() {
         }}
         activeMaterialId={panel?.mode === 'detail' ? panel.id : null}
         trashCount={trashCount}
+        userEmail={user.email_address}
+        onLogout={onLogout}
         onOpenTrash={() => {
           setSidebarOpen(false);
           setTrashOpen(true);
@@ -1561,7 +1570,7 @@ export function MaterialsApp() {
           );
         })()}
 
-      {settingsOpen && <SettingsDialog onClose={closeSettings} />}
+      {settingsOpen && <SettingsDialog user={user} onLogout={onLogout} onClose={closeSettings} />}
 
       {trashOpen && (
         <TrashDialog

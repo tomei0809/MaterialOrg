@@ -32,6 +32,9 @@ Rails.application.configure do
   # Don't care if the mailer can't send.
   config.action_mailer.raise_delivery_errors = false
 
+  # 開発ではメールを実際には送らず、ログに本文（パスワード再設定のリンク）を出す
+  config.action_mailer.delivery_method = :test
+
   # Make template changes take effect immediately.
   config.action_mailer.perform_caching = false
 

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::FoldersControllerTest < ActionDispatch::IntegrationTest
+  setup { sign_in_as users(:one) }
+
   test "一覧は空のフォルダも含め、教材数を返す" do
     get api_v1_folders_url
     assert_response :success
@@ -104,7 +106,7 @@ class Api::V1::FoldersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "arrange で同じ名前のフォルダがある場所や自分の子孫へは移せない" do
-    Folder.create!(name: "情報数学", parent: folders(:exam))
+    users(:one).folders.create!(name: "情報数学", parent: folders(:exam))
     patch arrange_api_v1_folders_url,
           params: { parent_id: folders(:exam).id, folder_ids: [ folders(:exam).children.first.id, folders(:math).id ] },
           as: :json

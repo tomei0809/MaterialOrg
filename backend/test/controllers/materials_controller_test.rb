@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::V1::MaterialsControllerTest < ActionDispatch::IntegrationTest
+  setup { sign_in_as users(:one) }
+
   test "一覧にタグが含まれる" do
     get api_v1_materials_url
     assert_response :success
@@ -75,7 +77,7 @@ class Api::V1::MaterialsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "タグ一覧は使用中のタグを返す" do
-    Tag.create!(name: "未使用")
+    users(:one).tags.create!(name: "未使用")
 
     get api_v1_tags_url
     assert_response :success

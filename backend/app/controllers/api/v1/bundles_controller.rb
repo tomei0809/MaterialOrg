@@ -3,7 +3,7 @@ module Api
     class BundlesController < ApplicationController
       # GET /api/v1/bundles
       def index
-        bundles = Bundle.left_joins(:materials)
+        bundles = Current.user.bundles.left_joins(:materials)
                         .group(:id)
                         .select("bundles.*, COUNT(materials.id) AS materials_count")
                         .order(:name)
@@ -14,9 +14,9 @@ module Api
       # POST /api/v1/bundles
       # { bundle: { name:, material_ids: [...] } } で作成と同時に教材をまとめる
       def create
-        bundle = Bundle.new(name: bundle_params[:name])
+        bundle = Current.user.bundles.new(name: bundle_params[:name])
         # ゴミ箱の教材はまとめに入れない
-        ids = Material.kept_ids_in_order(bundle_params[:material_ids])
+        ids = Current.user.materials.kept_ids_in_order(bundle_params[:material_ids])
 
         if ids.empty?
           return render json: {
@@ -42,7 +42,7 @@ module Api
 
       # PATCH /api/v1/bundles/:id（名前の変更）
       def update
-        bundle = Bundle.find(params[:id])
+        bundle = Current.user.bundles.find(params[:id])
 
         if bundle.update(name: bundle_params[:name])
           render json: bundle_json(bundle, bundle.materials.count), status: :ok
@@ -54,7 +54,7 @@ module Api
       # PATCH /api/v1/bundles/:id/reorder
       # { material_ids: [...] } の順に中身を並べ替える（中身すべての ID を渡す）
       def reorder
-        bundle = Bundle.find(params[:id])
+        bundle = Current.user.bundles.find(params[:id])
 
         if bundle.reorder(Array(params[:material_ids]))
           render json: bundle_json(bundle, bundle.materials.count), status: :ok
@@ -68,7 +68,7 @@ module Api
       # DELETE /api/v1/bundles/:id
       # まとめを解除する（教材は削除しない）
       def destroy
-        Bundle.find(params[:id]).destroy!
+        Current.user.bundles.find(params[:id]).destroy!
         head :no_content
       end
 

@@ -10,6 +10,7 @@ import type {
   MaterialFormValues,
   Tag,
 } from '@/types/material';
+import { apiFetch } from './apiFetch';
 
 const BASE_URL = '/api/v1/materials';
 const TAGS_URL = '/api/v1/tags';
@@ -37,7 +38,7 @@ export async function fetchMaterials(
   if (filters.tag) query.set('tag', filters.tag);
 
   const queryString = query.toString();
-  const response = await fetch(
+  const response = await apiFetch(
     queryString ? `${BASE_URL}?${queryString}` : BASE_URL,
   );
 
@@ -70,7 +71,7 @@ export async function saveMaterial(
   );
   if (file) body.append('material[file]', file);
 
-  const response = await fetch(isEditing ? `${BASE_URL}/${id}` : BASE_URL, {
+  const response = await apiFetch(isEditing ? `${BASE_URL}/${id}` : BASE_URL, {
     method: isEditing ? 'PATCH' : 'POST',
     body,
   });
@@ -102,7 +103,7 @@ export function updateMaterialFields(
 
 // 複数の教材をお気に入りに入れる／外す
 export async function setFavorite(ids: number[], favorite: boolean) {
-  const response = await fetch(`${BASE_URL}/favorite`, {
+  const response = await apiFetch(`${BASE_URL}/favorite`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids, favorite }),
@@ -112,13 +113,13 @@ export async function setFavorite(ids: number[], favorite: boolean) {
 
 // 教材を開いたことを記録する（「最近使った資料」）
 export async function markOpened(id: number) {
-  const response = await fetch(`${BASE_URL}/${id}/opened`, { method: 'PATCH' });
+  const response = await apiFetch(`${BASE_URL}/${id}/opened`, { method: 'PATCH' });
   return parseResponse<{ id: number; last_opened_at: string }>(response, '開いた記録を保存できませんでした。');
 }
 
 // 複数の教材をまとめてフォルダへ移動する（folderId が null なら未分類へ）
 export async function moveMaterials(ids: number[], folderId: number | null) {
-  const response = await fetch(`${BASE_URL}/move`, {
+  const response = await apiFetch(`${BASE_URL}/move`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids, folder_id: folderId ?? '' }),
@@ -129,7 +130,7 @@ export async function moveMaterials(ids: number[], folderId: number | null) {
 
 // 教材をゴミ箱へ移す（30日間は restoreMaterials で元に戻せる）
 export async function deleteMaterial(id: number): Promise<void> {
-  const response = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE' });
+  const response = await apiFetch(`${BASE_URL}/${id}`, { method: 'DELETE' });
 
   if (!response.ok) {
     throw new Error('教材をゴミ箱へ移動できませんでした。');
@@ -138,12 +139,12 @@ export async function deleteMaterial(id: number): Promise<void> {
 
 // ゴミ箱の教材（削除した日時の新しい順）
 export async function fetchTrash(): Promise<Material[]> {
-  const response = await fetch(`${BASE_URL}/trash`, { cache: 'no-store' });
+  const response = await apiFetch(`${BASE_URL}/trash`, { cache: 'no-store' });
   return parseResponse<Material[]>(response, 'ゴミ箱を読み込めませんでした。');
 }
 
 export async function restoreMaterials(ids: number[]) {
-  const response = await fetch(`${BASE_URL}/restore`, {
+  const response = await apiFetch(`${BASE_URL}/restore`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
@@ -153,7 +154,7 @@ export async function restoreMaterials(ids: number[]) {
 
 // ゴミ箱の教材を完全に削除する（'all' はゴミ箱を空にする）。元に戻せない
 export async function purgeMaterials(ids: number[] | 'all') {
-  const response = await fetch(`${BASE_URL}/purge`, {
+  const response = await apiFetch(`${BASE_URL}/purge`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ids === 'all' ? { all: true } : { ids }),
@@ -163,7 +164,7 @@ export async function purgeMaterials(ids: number[] | 'all') {
 
 // 教材に使われているタグ（使用数の多い順）
 export async function fetchTags(): Promise<Tag[]> {
-  const response = await fetch(TAGS_URL);
+  const response = await apiFetch(TAGS_URL);
 
   if (!response.ok) {
     throw new Error('タグ一覧を取得できませんでした。');
@@ -173,7 +174,7 @@ export async function fetchTags(): Promise<Tag[]> {
 }
 
 export async function fetchFolders(): Promise<Folder[]> {
-  const response = await fetch(FOLDERS_URL);
+  const response = await apiFetch(FOLDERS_URL);
   return parseResponse<Folder[]>(response, 'フォルダ一覧を取得できませんでした。');
 }
 
@@ -182,7 +183,7 @@ export async function saveFolder(
   values: { name: string; color: FolderColor; parent_id: number | null },
   id?: number,
 ): Promise<Folder> {
-  const response = await fetch(id ? `${FOLDERS_URL}/${id}` : FOLDERS_URL, {
+  const response = await apiFetch(id ? `${FOLDERS_URL}/${id}` : FOLDERS_URL, {
     method: id ? 'PATCH' : 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ folder: values }),
@@ -200,7 +201,7 @@ export async function arrangeFolders(
   parentId: number | null,
   folderIds: number[],
 ): Promise<Folder[]> {
-  const response = await fetch(`${FOLDERS_URL}/arrange`, {
+  const response = await apiFetch(`${FOLDERS_URL}/arrange`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ parent_id: parentId, folder_ids: folderIds }),
@@ -210,7 +211,7 @@ export async function arrangeFolders(
 
 // フォルダ内の教材は削除されず未分類に戻る
 export async function deleteFolder(id: number): Promise<void> {
-  const response = await fetch(`${FOLDERS_URL}/${id}`, { method: 'DELETE' });
+  const response = await apiFetch(`${FOLDERS_URL}/${id}`, { method: 'DELETE' });
 
   if (!response.ok) {
     throw new Error('フォルダを削除できませんでした。');
@@ -220,7 +221,7 @@ export async function deleteFolder(id: number): Promise<void> {
 // --- まとめ（複数の教材を一覧で1行に束ねて表示する）---
 
 export async function fetchBundles(): Promise<Bundle[]> {
-  const response = await fetch(BUNDLES_URL);
+  const response = await apiFetch(BUNDLES_URL);
   return parseResponse<Bundle[]>(response, 'まとめの一覧を取得できませんでした。');
 }
 
@@ -232,7 +233,7 @@ const jsonRequest = (method: string, body: unknown): RequestInit => ({
 
 // 教材を指定してまとめを作成する（別のまとめに入っていた教材は移ってくる）
 export async function createBundle(name: string, materialIds: number[]): Promise<Bundle> {
-  const response = await fetch(
+  const response = await apiFetch(
     BUNDLES_URL,
     jsonRequest('POST', { bundle: { name, material_ids: materialIds } }),
   );
@@ -240,19 +241,19 @@ export async function createBundle(name: string, materialIds: number[]): Promise
 }
 
 export async function renameBundle(id: number, name: string): Promise<Bundle> {
-  const response = await fetch(`${BUNDLES_URL}/${id}`, jsonRequest('PATCH', { bundle: { name } }));
+  const response = await apiFetch(`${BUNDLES_URL}/${id}`, jsonRequest('PATCH', { bundle: { name } }));
   return parseResponse<Bundle>(response, 'まとめの名前を変更できませんでした。');
 }
 
 // まとめを解除する（教材は削除されない）
 export async function deleteBundle(id: number): Promise<void> {
-  const response = await fetch(`${BUNDLES_URL}/${id}`, { method: 'DELETE' });
+  const response = await apiFetch(`${BUNDLES_URL}/${id}`, { method: 'DELETE' });
   if (!response.ok) throw new Error('まとめを解除できませんでした。');
 }
 
 // 教材を既存のまとめに入れる（bundleId が null ならまとめから外す）
 export async function assignBundle(ids: number[], bundleId: number | null) {
-  const response = await fetch(
+  const response = await apiFetch(
     `${BASE_URL}/assign_bundle`,
     jsonRequest('PATCH', { ids, bundle_id: bundleId ?? '' }),
   );
@@ -261,7 +262,7 @@ export async function assignBundle(ids: number[], bundleId: number | null) {
 
 // まとめの中身を ids の順に並べ替える（中身すべての ID を渡す）
 export async function reorderBundle(id: number, materialIds: number[]): Promise<Bundle> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${BUNDLES_URL}/${id}/reorder`,
     jsonRequest('PATCH', { material_ids: materialIds }),
   );

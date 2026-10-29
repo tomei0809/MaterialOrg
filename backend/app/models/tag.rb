@@ -2,10 +2,11 @@
 class Tag < ApplicationRecord
   MAX_NAME_LENGTH = 30
 
+  belongs_to :user, optional: true
   has_many :material_tags, dependent: :destroy
   has_many :materials, through: :material_tags
 
   validates :name, presence: true,
                    length: { maximum: MAX_NAME_LENGTH },
-                   uniqueness: true
+                   uniqueness: { scope: :user_id }
 end

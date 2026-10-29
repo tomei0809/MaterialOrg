@@ -67,6 +67,9 @@ type Props = {
   // フォルダをドラッグして並び替え・別のフォルダの中へ移動
   onArrangeFolder: (folderId: number, plan: FolderDropPlan) => void;
   onOpenSettings: () => void;
+  // ログイン中の利用者のメールアドレスとログアウト
+  userEmail: string;
+  onLogout: () => void;
   // 詳細パネルで開いている教材（フォルダを展開したときの教材名を強調する）
   activeMaterialId: number | null;
   // 展開したフォルダの教材名：クリックで詳細、ダブルクリックでビューア
@@ -449,6 +452,8 @@ export function Sidebar({
   trashCount,
   onOpenTrash,
   onDropToTrash,
+  userEmail,
+  onLogout,
 }: Props) {
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   // ドラッグ中のフォルダ（dragover 中は dataTransfer の中身を読めないため、ここで覚えておく）
@@ -1037,8 +1042,20 @@ export function Sidebar({
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-sidebar-foreground hover:bg-sidebar-hover"
           >
             <span aria-hidden="true">⚙</span>
-            表示設定（テーマ・色）
+            設定（表示・アカウント）
           </button>
+          <div className="flex items-center gap-2 px-3 pt-1 pb-0.5 text-[11px] text-sidebar-muted">
+            <span className="min-w-0 flex-1 truncate" title={userEmail}>
+              {userEmail}
+            </span>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="shrink-0 rounded px-1.5 py-0.5 hover:bg-sidebar-hover hover:text-sidebar-foreground"
+            >
+              ログアウト
+            </button>
+          </div>
         </div>
       </aside>
     </>

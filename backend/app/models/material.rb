@@ -18,6 +18,8 @@ class Material < ApplicationRecord
   # ゴミ箱に残す期間（過ぎたものは PurgeTrashJob が完全に削除する）
   TRASH_RETENTION = 30.days
 
+  # 持ち主（user_id が NULL なのは、ログイン機能より前に作られた持ち主のいない教材）
+  belongs_to :user, optional: true
   belongs_to :folder, optional: true
   belongs_to :bundle, optional: true
   has_one_attached :file
@@ -35,6 +37,7 @@ class Material < ApplicationRecord
               in: %w[slide assignment past_exam notes other]
             }
 
+  validate :folder_and_bundle_must_belong_to_same_user
   validate :tag_names_must_be_valid
   validate :file_must_be_allowed
 
@@ -88,7 +91,8 @@ class Material < ApplicationRecord
                              .uniq
     return unless tag_names_valid?
 
-    self.tags = @tag_names.map { |name| Tag.find_or_create_by!(name: name) }
+    # タグは利用者ごと（同じ名前でも、ほかの利用者のタグとは別）
+    self.tags = @tag_names.map { |name| Tag.find_or_create_by!(user_id: user_id, name: name) }
   end
 
   def tag_names
@@ -103,6 +107,12 @@ class Material < ApplicationRecord
   end
 
   # 新しく添付されたファイルだけを検証する（保存済みの古いファイルは対象外）
+  # ほかの利用者のフォルダ・まとめには入れられない
+  def folder_and_bundle_must_belong_to_same_user
+    errors.add(:folder, "が見つかりません") if folder && folder.user_id != user_id
+    errors.add(:bundle, "が見つかりません") if bundle && bundle.user_id != user_id
+  end
+
   def file_must_be_allowed
     return unless attachment_changes["file"].present? && file.attached?
 

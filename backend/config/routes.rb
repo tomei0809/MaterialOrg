@@ -8,6 +8,12 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
+      # ログイン・新規登録・パスワード
+      resource :session, only: %i[show create destroy]
+      resources :users, only: :create
+      patch "users/me/password", to: "users#update_password"
+      resources :passwords, only: %i[create update], param: :token
+
       resources :materials, only: %i[index create update destroy] do
         patch :move, on: :collection
         patch :assign_bundle, on: :collection

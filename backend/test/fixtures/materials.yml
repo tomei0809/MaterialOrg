@@ -1,6 +1,7 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 math_slide:
+  user: one
   title: 情報数学 第1回
   material_type: slide
   description: 集合と論理
@@ -9,12 +10,14 @@ math_slide:
   bundle_position: 0
 
 programming_exam:
+  user: one
   title: プログラミング言語A 過去問
   material_type: past_exam
   description:
 
 # ゴミ箱に入っている教材（一覧・件数には出ない）
 trashed_note:
+  user: one
   title: 消したノート
   material_type: notes
   description:

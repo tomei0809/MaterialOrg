@@ -5,7 +5,7 @@ module Api
       # 中身が空のフォルダも含めて並び順（position → 名前）で返す（階層は parent_id で表す）
       # materials_count はそのフォルダ直下の教材数（サブフォルダとゴミ箱の分は含まない）
       def index
-        folders = Folder.joins("LEFT JOIN materials ON materials.folder_id = folders.id AND materials.deleted_at IS NULL")
+        folders = Current.user.folders.joins("LEFT JOIN materials ON materials.folder_id = folders.id AND materials.deleted_at IS NULL")
                         .group(:id)
                         .select("folders.*, COUNT(materials.id) AS materials_count")
                         .ordered
@@ -17,7 +17,7 @@ module Api
       # { parent_id, folder_ids }：parent_id（空なら最上位）の中を folder_ids の順に並べる。
       # 別の親から移ってくるフォルダを含めれば、そのフォルダの移動（階層の変更）になる
       def arrange
-        Folder.arrange(params[:parent_id], Array(params[:folder_ids]))
+        Current.user.folders.arrange(params[:parent_id], Array(params[:folder_ids]))
         index
       rescue ArgumentError => e
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
@@ -27,7 +27,7 @@ module Api
 
       # POST /api/v1/folders
       def create
-        folder = Folder.new(folder_params)
+        folder = Current.user.folders.new(folder_params)
 
         if folder.save
           render json: folder_json(folder, 0), status: :created
@@ -38,7 +38,7 @@ module Api
 
       # PATCH /api/v1/folders/:id
       def update
-        folder = Folder.find(params[:id])
+        folder = Current.user.folders.find(params[:id])
 
         if folder.update(folder_params)
           render json: folder_json(folder, folder.materials.kept.count), status: :ok
@@ -50,7 +50,7 @@ module Api
       # DELETE /api/v1/folders/:id
       # 中のサブフォルダと教材は削除せず、1つ上のフォルダ（最上位なら未分類）へ移す
       def destroy
-        Folder.transaction { Folder.find(params[:id]).destroy! }
+        Folder.transaction { Current.user.folders.find(params[:id]).destroy! }
         head :no_content
       end
 

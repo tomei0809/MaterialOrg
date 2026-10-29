@@ -1,5 +1,7 @@
 exam_prep:
+  user: one
   name: 試験対策
 
 review:
+  user: one
   name: 復習用

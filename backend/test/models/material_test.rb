@@ -2,7 +2,7 @@ require "test_helper"
 
 class MaterialTest < ActiveSupport::TestCase
   test "必須項目がないと無効" do
-    material = Material.new
+    material = users(:one).materials.new
 
     assert_not material.valid?
     assert_includes material.errors.attribute_names, :title
@@ -30,7 +30,7 @@ class MaterialTest < ActiveSupport::TestCase
 
   test "上限サイズを超えるファイルは添付できない" do
     # 保存済みのレコードに attach するとその場で保存されるため、未保存のレコードで確認する
-    material = Material.new(title: "a", material_type: "other")
+    material = users(:one).materials.new(title: "a", material_type: "other")
     material.file.attach(io: StringIO.new("data"), filename: "big.mp4")
     material.file.blob.byte_size = Material::MAX_FILE_SIZE + 1
 

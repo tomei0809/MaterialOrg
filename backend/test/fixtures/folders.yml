@@ -1,14 +1,17 @@
 first_year:
+  user: one
   name: 1年前期
   color: blue
   position: 0
 
 exam:
+  user: one
   name: 試験まとめ
   color: red
   position: 1
 
 math:
+  user: one
   name: 情報数学
   color: green
   parent: first_year

@@ -4,6 +4,7 @@
 class Bundle < ApplicationRecord
   MAX_NAME_LENGTH = 50
 
+  belongs_to :user, optional: true
   has_many :materials, -> { order(:bundle_position, :id) }, dependent: :nullify
 
   # 見出しは入力どおりに残す（NFKC だと「1～10」の全角チルダが半角になるため前後の空白だけ除く）

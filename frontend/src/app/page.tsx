@@ -1,5 +1,5 @@
-import { MaterialsApp } from '@/components/materials/MaterialsApp';
+import { AuthGate } from '@/components/auth/AuthGate';
 
 export default function Page() {
-  return <MaterialsApp />;
+  return <AuthGate />;
 }

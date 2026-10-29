@@ -7,6 +7,8 @@ class Folder < ApplicationRecord
   # frontend/src/types/material.ts の FOLDER_COLORS とそろえる
   COLORS = %w[blue green yellow red purple teal orange olive pink gray].freeze
 
+  # 持ち主（user_id が NULL なのは、ログイン機能より前に作られた持ち主のいないフォルダ）
+  belongs_to :user, optional: true
   belongs_to :parent, class_name: "Folder", optional: true
   has_many :children, class_name: "Folder", foreign_key: :parent_id, inverse_of: :parent
   # 削除時は中身を親へ移すため dependent は指定しない（before_destroy で処理）
@@ -16,9 +18,10 @@ class Folder < ApplicationRecord
 
   validates :name, presence: true,
                    length: { maximum: MAX_NAME_LENGTH },
-                   uniqueness: { scope: :parent_id }
+                   uniqueness: { scope: %i[user_id parent_id] }
   validates :color, inclusion: { in: COLORS }
   validates :parent, presence: true, if: -> { parent_id.present? }
+  validate :parent_must_belong_to_same_user
   validate :parent_must_not_create_cycle
   validate :depth_within_limit
 
@@ -91,6 +94,13 @@ class Folder < ApplicationRecord
     height
   end
 
+  # ほかの利用者のフォルダの中には入れられない
+  def parent_must_belong_to_same_user
+    if parent && parent.user_id != user_id
+      errors.add(:parent, "が見つかりません")
+    end
+  end
+
   def parent_must_not_create_cycle
     return if parent_id.nil? || new_record?
 
@@ -109,13 +119,13 @@ class Folder < ApplicationRecord
   end
 
   def place_at_end
-    last = Folder.where(parent_id: parent_id).maximum(:position)
+    last = Folder.where(user_id: user_id, parent_id: parent_id).maximum(:position)
     self.position = last.nil? ? 0 : last + 1
   end
 
   # サブフォルダは親の中の末尾へ、元の並び順のまま移す
   def move_contents_to_parent
-    last = Folder.where(parent_id: parent_id).where.not(id: id).maximum(:position) || -1
+    last = Folder.where(user_id: user_id, parent_id: parent_id).where.not(id: id).maximum(:position) || -1
     children.ordered.each.with_index(1) do |child, offset|
       child.update_columns(parent_id: parent_id, position: last + offset)
     end
