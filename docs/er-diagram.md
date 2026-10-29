@@ -1,10 +1,15 @@
 # ER図：Material Organization
 
-`backend/db/schema.rb`（version 2026_10_28_120000）をもとにした、テーブルと関連の図です。
+`backend/db/schema.rb`（version 2026_10_29_164010）をもとにした、テーブルと関連の図です。
 各テーブルの列の意味や制約は [データベース設計](database-design.md) にまとめています。
 
 ```mermaid
 erDiagram
+    users ||--o{ sessions : "ログイン"
+    users ||--o{ materials : "持つ"
+    users ||--o{ folders : "持つ"
+    users ||--o{ bundles : "持つ"
+    users ||--o{ tags : "持つ"
     folders ||--o{ folders : "親子（parent_id）"
     folders |o--o{ materials : "入れる（folder_id）"
     bundles |o--o{ materials : "まとめる（bundle_id）"
@@ -14,8 +19,26 @@ erDiagram
     active_storage_blobs ||--o{ active_storage_attachments : ""
     active_storage_blobs ||--o{ active_storage_variant_records : ""
 
+    users {
+        bigint id PK
+        string email_address "必須・一意・小文字"
+        string password_digest "bcrypt"
+        datetime created_at
+        datetime updated_at
+    }
+
+    sessions {
+        bigint id PK "Cookie session_id の値"
+        bigint user_id FK
+        string ip_address
+        string user_agent
+        datetime created_at "2週間で期限切れ"
+        datetime updated_at
+    }
+
     folders {
         bigint id PK
+        bigint user_id FK "持ち主"
         string name "必須・30文字以内・同じ親の中で重複不可"
         string color "10色のいずれか（既定 blue）"
         bigint parent_id FK "NULL は最上位"
@@ -26,6 +49,7 @@ erDiagram
 
     materials {
         bigint id PK
+        bigint user_id FK "持ち主"
         string title "必須"
         string material_type "slide / assignment / past_exam / notes / other"
         text description
@@ -41,6 +65,7 @@ erDiagram
 
     bundles {
         bigint id PK
+        bigint user_id FK "持ち主"
         string name "必須・50文字以内"
         datetime created_at
         datetime updated_at
@@ -48,7 +73,8 @@ erDiagram
 
     tags {
         bigint id PK
-        string name "必須・30文字以内・一意"
+        bigint user_id FK "持ち主"
+        string name "必須・30文字以内・利用者ごとに一意"
         datetime created_at
         datetime updated_at
     }
@@ -100,6 +126,8 @@ erDiagram
 | materials（ゴミ箱） | `deleted_at` による論理削除 | 削除するとまずゴミ箱へ（フォルダは保持、まとめからは外れる）。30日後に `PurgeTrashJob` が完全に削除する |
 
 ## 設計上の判断
+
+- **データは利用者ごと**：教材・フォルダ・まとめ・タグに `user_id` を持たせ、API はすべて `Current.user` の範囲から探す。タグ名・フォルダ名の重複も利用者ごとに判定する（`(user_id, name)`・`(user_id, parent_id, name)` の一意インデックス）。添付ファイルの配信も、教材の持ち主にだけ許す。
 
 - **科目テーブルを持たない**：初期設計の `subjects` は廃止し、科目はフォルダで表す（`20261024131329_remove_subject_from_materials`）。科目・学期・単元のような入れ子を、利用者が自由に作れるようにするため。
 - **お気に入り・最近使ったは日時の列**：真偽値ではなく `favorited_at`・`last_opened_at` にして、「入れた順」「開いた順」に並べられるようにした。更新は `update_all`・`update_columns` で行い、`updated_at`（更新日順の並び替え）を変えない。

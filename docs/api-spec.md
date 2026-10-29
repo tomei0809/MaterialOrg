@@ -10,14 +10,18 @@
 | 呼び出し元 | ブラウザ → Next.js（同じオリジン）→ rewrites で Rails へ転送 |
 | データ形式 | JSON（`Content-Type: application/json`）。教材の登録・更新だけ `multipart/form-data` |
 | 文字コード | UTF-8 |
-| 認証 | なし（1人で使う前提。公開範囲を広げるときに追加する） |
+| 認証 | ログインが必要（7章）。ログイン状態は署名付きの httpOnly Cookie `session_id` で持つ。ログインしていなければ 401 |
+| データの範囲 | すべての API は、ログイン中の利用者のデータだけを扱う。ほかの利用者の ID を指定すると 404 |
 | 日時 | ISO 8601（例 `2026-10-27T12:00:00.000+09:00`） |
 
 ### 1.1 エラーの形
 
 | ステータス | 場面 | 本文 |
 |---|---|---|
+| 401 Unauthorized | ログインしていない・ログインの期限切れ | `{ "errors": ["ログインしてください"] }` |
+| 403 Forbidden | 新規登録の人数が上限に達している | `{ "errors": ["…"] }` |
 | 422 Unprocessable Entity | 検証エラー | `{ "errors": ["タイトルを入力してください"] }` |
+| 429 Too Many Requests | ログイン・新規登録・再設定の試行が多すぎる | `{ "errors": ["…"] }` |
 | 404 Not Found | ID の対象がない | Rails 標準（本文は空または HTML。画面では「見つかりません」として扱う） |
 | 500 Internal Server Error | 想定外のエラー | Rails 標準 |
 
@@ -26,12 +30,19 @@
 | メソッド | パス | 用途 |
 |---|---|---|
 | GET | `/up` | 死活監視（起動していれば 200） |
-| GET | `/rails/active_storage/blobs/proxy/:signed_id/:filename` | 添付ファイルの配信（`file_url` の値）。Range リクエスト対応 |
+| GET | `/rails/active_storage/blobs/proxy/:signed_id/:filename` | 添付ファイルの配信（`file_url` の値）。Range リクエスト対応。ログインしていなければ 401、ほかの利用者の教材のファイルなら 404 |
 
 ## 2. エンドポイント一覧
 
 | メソッド | パス | 用途 |
 |---|---|---|
+| GET | `/api/v1/session` | ログイン中の利用者 |
+| POST | `/api/v1/session` | ログイン |
+| DELETE | `/api/v1/session` | ログアウト |
+| POST | `/api/v1/users` | 新規登録 |
+| PATCH | `/api/v1/users/me/password` | パスワードの変更 |
+| POST | `/api/v1/passwords` | パスワード再設定のメールを送る |
+| PATCH | `/api/v1/passwords/:token` | パスワードの再設定 |
 | GET | `/api/v1/materials` | 教材一覧・検索（ゴミ箱の教材は含まない） |
 | POST | `/api/v1/materials` | 教材の登録（ファイル付き） |
 | PATCH | `/api/v1/materials/:id` | 教材の更新 |
@@ -353,7 +364,77 @@ curl -X POST http://localhost:3000/api/v1/materials \
 
 タグの作成・付け替えは、教材の登録・更新の `material[tag_names][]` で行う。
 
-## 7. 実装上の注意
+## 7. ログイン・新規登録・パスワード
+
+ログイン状態は Rails の `sessions` テーブルと、署名付きの Cookie `session_id`（httpOnly・`SameSite=Lax`・本番は `Secure`・有効期限2週間）で持つ。
+画面と API はブラウザから見て同じオリジン（Next.js の rewrites）なので、画面側でトークンを扱う必要はない。
+
+### 7.1 利用者のオブジェクト
+
+```json
+{ "id": 1, "email_address": "you@example.com" }
+```
+
+### 7.2 GET /api/v1/session（ログイン中の利用者）
+
+**200 OK**：利用者のオブジェクト。 **401**：ログインしていない。
+
+### 7.3 POST /api/v1/session（ログイン）
+
+```json
+{ "email_address": "you@example.com", "password": "********" }
+```
+
+**201 Created**：利用者のオブジェクト。`Set-Cookie: session_id=…` が付く。
+**401**：`{ "errors": ["メールアドレスまたはパスワードが違います"] }`　**429**：3分に10回を超えた。
+
+### 7.4 DELETE /api/v1/session（ログアウト）
+
+**204 No Content**。この端末のログインだけを終わらせ、Cookie を消す。
+
+### 7.5 POST /api/v1/users（新規登録）
+
+```json
+{ "email_address": "you@example.com", "password": "********", "password_confirmation": "********" }
+```
+
+- パスワードは8文字以上。メールアドレスは小文字にそろえて保存し、重複できない。
+- 登録できたら、そのままログインする（Cookie が付く）。データは空の状態から始まる。
+
+**201 Created**：利用者のオブジェクト。 **422**：入力の誤り・重複。
+**403**：利用者の数が上限（環境変数 `MAX_USERS`、既定 10）に達している。 **429**：1時間に5回を超えた。
+
+### 7.6 PATCH /api/v1/users/me/password（パスワードの変更）
+
+```json
+{ "current_password": "********", "password": "********", "password_confirmation": "********" }
+```
+
+**204 No Content**：変更した。この端末以外のログインは終わる。 **422**：今のパスワードが違う・新しいパスワードの誤り。
+
+### 7.7 POST /api/v1/passwords（再設定のメール）
+
+```json
+{ "email_address": "you@example.com" }
+```
+
+登録されていれば、再設定のリンク（`APP_URL/reset-password?token=…`、15分で無効）をメールで送る。
+登録の有無を知られないよう、どちらでも同じ応答を返す。
+
+**200 OK**：`{ "message": "登録されているアドレスなら、再設定のメールを送りました" }`　**429**：1時間に5回を超えた。
+
+### 7.8 PATCH /api/v1/passwords/:token（再設定）
+
+```json
+{ "password": "********", "password_confirmation": "********" }
+```
+
+**204 No Content**：変更した。すべての端末のログインは終わる。
+**422**：トークンが無効・期限切れ、またはパスワードの誤り。
+
+## 8. 実装上の注意
+
+- 各コントローラーは `Current.user.materials` のように、ログイン中の利用者の範囲から探す。タグとフォルダ名の重複も利用者ごとに判定する。
 
 - 一覧・フォルダ・まとめ・タグは画面を開いたときにまとめて取得し、並び替え・絞り込み・集計は画面側で行う（教材数が数千件程度までを想定）。
 - 一括操作（move・assign_bundle・favorite）は `update_all` を使い、1回の SQL で更新する。ゴミ箱の教材は対象にしない。

@@ -16,6 +16,7 @@ PDF・画像・動画・コード・Office ファイルなど形式がばらば�
 | 探す | タイトル・フォルダ名・タグ・説明の検索、直近8件の検索履歴、種類タブ、タグでの絞り込み |
 | 見る | マウスを乗せるとプレビュー（PDF のスライドショー、動画の無音再生、コードの自動スクロール）。画面全体のビューアで PDF・画像の拡大と移動、コード検索、Office・CSV・ZIP の中身表示 |
 | すぐ戻る | お気に入り、最近使った資料、サイドバーの展開で教材名を表示 |
+| ログイン | メールアドレスとパスワードで新規登録・ログイン。数人が使えて、データは本人だけが見られる（共有しない）。パスワードの変更、メールでの再設定 |
 | ゴミ箱 | 削除した教材は30日間ゴミ箱に残り、元のフォルダへ戻せる（削除直後の通知の「元に戻す」、Delete キー、サイドバーへのドラッグにも対応）。30日を過ぎると自動で完全に削除 |
 | 表示 | 1〜3列の一覧、詰めた表示、ダーク表示、サイドバーのアイコン表示 |
 
@@ -75,6 +76,14 @@ bin/rails db:prepare          # DB の作成とマイグレーション
 bin/rails server              # http://localhost:3000
 ```
 
+初めて開いたら画面の「新規登録」でアカウントを作ります。ログイン機能より前に登録していた教材があれば、次のコマンドで自分のアカウントに割り当てます。
+
+```bash
+bin/rails users:claim_orphans EMAIL=you@example.com
+```
+
+開発ではメールは送られません。パスワード再設定のリンクは Rails のログに `[PasswordsMailer] 再設定のリンク` として出ます。
+
 ### 2. フロントエンド（Next.js、ポート 3001）
 
 ```bash
@@ -97,7 +106,10 @@ npm run dev -- -p 3001
 | `DATABASE_URL` | backend（本番） | 本番 DB（Neon）の接続先。cache・queue・cable の DB は DB 名に `_cache` などを付けて自動で決まる |
 | `AWS_ACCESS_KEY_ID`・`AWS_SECRET_ACCESS_KEY`・`S3_BUCKET`・`AWS_REGION` | backend（本番） | 添付ファイルの保存先（Amazon S3） |
 | `APP_HOST` | backend（本番） | 受け付けるホスト名（カンマ区切り） |
-| `SOLID_QUEUE_IN_PUMA` | backend（本番） | `true` でジョブ（添付の削除・ゴミ箱の自動削除）を Puma の中で動かす |
+| `SOLID_QUEUE_IN_PUMA` | backend（本番） | `true` でジョブ（添付の削除・ゴミ箱の自動削除・メール）を Puma の中で動かす |
+| `MAX_USERS` | backend | 新規登録できる人数の上限（既定 10） |
+| `APP_URL` | backend（本番） | 画面の URL（パスワード再設定のメールのリンクに使う。例 `https://…vercel.app`） |
+| `BREVO_API_KEY`・`MAIL_FROM` | backend（本番） | パスワード再設定のメールを Brevo で送るための API キーと、確認済みの送信元アドレス |
 
 本番環境の作り方は [本番環境への移行手順](docs/deployment.md)（Vercel ＋ Render の Web Service（無料）＋ Neon ＋ S3）を見てください。
 

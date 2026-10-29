@@ -152,6 +152,10 @@ Render の画面で **New → Web Service** から作る（Blueprint は使わ�
 | `RAILS_MAX_THREADS` | `3`（無料プランのメモリ 512MB に合わせて少なめに） |
 | `RAILS_LOG_LEVEL` | `info` |
 | `WEB_CONCURRENCY` | `0`（Puma を1プロセスで動かしてメモリを節約する。Render は既定で 1 を入れ、余分な親プロセスが増える） |
+| `MAX_USERS` | `10`（新規登録できる人数の上限。増やすときはここを変える） |
+| `APP_URL` | Vercel の URL（例 `https://material-organization.vercel.app`。末尾の `/` なし。再設定のメールのリンクに使う） |
+| `BREVO_API_KEY` | 6. で作る Brevo の API キー（後から入れてよい） |
+| `MAIL_FROM` | 6. で確認した送信元（例 `MaterialOrg <you@example.com>`） |
 
 `APP_HOST` は URL が決まってから 5. で入れる。
 
@@ -206,23 +210,38 @@ materialorg-api.onrender.com,material-organization.vercel.app
 > Vercel の rewrites は、Rails へ転送するときに元のホスト名を `X-Forwarded-Host` で伝える。Rails はこの名前でホストを確かめるため、Render のホスト名だけを入れると、画面からの API がすべて 403 になる（ログに `Blocked hosts: material-organization.vercel.app`）。
 > 独自ドメインを付けたら、そのホスト名も足す。Vercel のプレビュー用の URL（`…-git-….vercel.app`）から試すときも、そのホスト名を足す。
 
-## 6. 公開後の確認
+## 6. パスワード再設定のメール（Brevo）
+
+パスワードを忘れたときの再設定のリンクを、Brevo（https://www.brevo.com）の API で送る。
+Render の無料プランは SMTP のポート（25・465・587）を使えないため、HTTPS で送れる Brevo を使う。無料プランは1日300通まで。
+
+1. Brevo に無料で登録する
+2. **Senders, Domains & Dedicated IPs → Senders** →「Add a sender」で送信元のメールアドレスを登録し、届いた確認メールのリンクを開く
+   - 独自ドメインがない場合は、自分の Gmail などのアドレスでよい。ただし受け取り側で迷惑メールに入りやすいので、初めて使う人には迷惑メールのフォルダも確かめてもらう
+3. **SMTP & API → API Keys** →「Generate a new API key」でキーを作って控える（`xkeysib-` で始まる）
+4. Render の **Environment** に `BREVO_API_KEY`（3. のキー）と `MAIL_FROM`（2. のアドレス。例 `MaterialOrg <you@example.com>`）、`APP_URL`（Vercel の URL）を入れて保存する
+
+> `BREVO_API_KEY` が空のときは、メールは送られず捨てられる（再設定の画面は「送りました」と表示される）。
+
+## 7. 公開後の確認
 
 `<WEB_URL>` を開いて、上から順に確認する。Render が休止していると最初の表示に1分ほどかかる（一覧が「読み込み中」のまま待つ）。
 
 | # | 確認すること | 期待する結果 |
 |---|---|---|
-| 1 | 画面が開く | 「すべての教材 0件」と空の一覧。開発者ツールの Network で `/api/v1/materials` が 200 |
+| 1 | 画面が開く | ログイン画面が出る。「新規登録」で自分のアカウントを作ると、空の一覧が出る（Network で `/api/v1/materials` が 200） |
 | 2 | フォルダを作る | サイドバーとマップに出る。再読み込みしても残る |
 | 3 | 小さな PDF（1MB 程度）を登録 | 一覧に出る。S3 のバケットにオブジェクトが増え、Neon の `active_storage_blobs` に行が増える |
 | 4 | ビューアで開く | PDF が表示される。S3 のオブジェクトの URL を直接開くと AccessDenied（非公開） |
 | 5 | 動画・音声を登録して位置を移す | その位置から再生される（Network で 206） |
-| 6 | 大きなファイル（10MB・100MB） | 登録できる。**413 などで失敗したら 7. を参照** |
+| 6 | 大きなファイル（10MB・100MB） | 登録できる。**413 などで失敗したら 8. を参照** |
 | 7 | 教材をゴミ箱へ → 元に戻す | 一覧から消えて戻る。ゴミ箱で「完全に削除」すると、少し後に S3 のオブジェクトも消える |
 | 8 | 20分ほど放置してから開き直す | 1分ほどで表示される（Render の休止からの起動）。データは残っている |
 | 9 | Render のログ | `Completed 200` が並び、エラーがない |
+| 10 | 別のブラウザ（シークレットウィンドウ）で別の人として登録 | 1人目の教材は見えない |
+| 11 | 「パスワードを忘れた方」で自分のアドレスを入れる | 再設定のメールが届き、リンクから新しいパスワードを設定できる |
 
-## 7. うまくいかないとき
+## 8. うまくいかないとき
 
 | 症状 | 見る場所・対処 |
 |---|---|
@@ -237,13 +256,16 @@ materialorg-api.onrender.com,material-organization.vercel.app
 | 登録で 500・`Aws::S3::Errors::AccessDenied` | IAM ポリシーのバケット名、`S3_BUCKET`、リージョン |
 | 大きなファイルだけ失敗（413 など） | Vercel の転送経路の上限。小さなファイルで運用するか、[本番環境ガイド](deployment-guide.pdf) 7.3 の「S3 への直接アップロード」を実装する |
 | Render が `Out of memory` で再起動する | 無料プランは 512MB。Environment で `RAILS_MAX_THREADS` を 2 に下げる。続くなら Settings の Instance Type を有料（Starter 以上）に変える |
+| ログインしてもすぐログイン画面に戻る | Rails の本番は Cookie を `Secure` で付ける。Vercel の URL が `https://` か、Render の `APP_HOST` に Vercel のホスト名が入っているか（403 になっていないか） |
+| 再設定のメールが届かない | Render の Logs で `Brevo へのメール送信に失敗しました` を探す。`BREVO_API_KEY`・`MAIL_FROM`（Brevo で確認済みの送信元か）。迷惑メールのフォルダも確かめる |
+| 新規登録で「上限に達している」 | Render の Environment で `MAX_USERS` を増やす |
 | Neon の容量・計算時間の警告 | Neon の Dashboard → Usage。ゴミ箱を空にする、古い教材を整理する。足りなければ Neon の有料プラン |
 
-## 8. その後の運用
+## 9. その後の運用
 
 - `main` に push すると、Render と Vercel が自動で再デプロイする（マイグレーションは起動時の `db:prepare` で実行）。
 - GitHub Actions の CI が通ったものだけをマージする。
 - ゴミ箱は30日を過ぎたものが毎日 4:00 に自動で完全に削除される（Render が休止中なら、次にゴミ箱を開いたときに削除される）。
-- 公開範囲：今はログイン機能がない。URL を知っている人は誰でも操作できるので、URL を広く共有しない。広く公開する前に認証を追加する。
+- 利用者：誰でも新規登録できる（`MAX_USERS` 人まで）。データは各自のもので共有されない。人数を増やすときは `MAX_USERS` を変える。
 - バックアップ：Neon の無料プランは、一定期間内の任意の時点へ戻せる（Restore）。期間は公式ページで確かめる。S3 はバージョニングで誤削除に備える。
 - 有料へ移るとき：Render はサービスの Settings → Instance Type を変えるだけ。Neon は Billing からプランを変える。DB の移し替えは不要。

@@ -1,7 +1,7 @@
 # データベース設計：Material Organization
 
 テーブルと関連の図は [ER図](er-diagram.md) を参照してください。
-この文書は `backend/db/schema.rb`（version 2026_10_28_120000）と各モデルの検証に合わせています。
+この文書は `backend/db/schema.rb`（version 2026_10_29_164010）と各モデルの検証に合わせています。
 
 ## 1. 目的
 
@@ -11,6 +11,8 @@
 
 | テーブル | 役割 |
 |---|---|
+| `users` | 利用者（メールアドレスとパスワード） |
+| `sessions` | ログイン中の端末 |
 | `materials` | 教材（資料1件） |
 | `folders` | フォルダ。`parent_id` で階層を作る（最大5階層） |
 | `bundles` | まとめ（複数の教材を1つに束ねる） |
@@ -19,6 +21,34 @@
 | `active_storage_*` | 添付ファイル（Rails の Active Storage が管理） |
 
 当初設計の `subjects`（科目）と `documents` は廃止した。科目・学期・単元は、利用者が作るフォルダの階層で表す。
+
+教材・フォルダ・まとめ・タグは `user_id` で利用者ごとに持ち、ほかの利用者とは共有しない。
+
+### users
+
+| カラム | 型 | 制約 | 説明 |
+|---|---|---|---|
+| id | bigint | 主キー | 利用者ID |
+| email_address | string | 必須・一意・小文字で保存 | ログインに使うメールアドレス |
+| password_digest | string | 必須 | パスワードのハッシュ（bcrypt。`has_secure_password`） |
+| created_at / updated_at | datetime | 必須 | |
+
+- パスワードは8文字以上。登録できる人数は環境変数 `MAX_USERS`（既定 10）まで。
+- パスワード再設定のトークンは DB に保存せず、Rails の署名付きトークン（15分で失効、パスワードを変えると無効）を使う。
+
+### sessions
+
+| カラム | 型 | 制約 | 説明 |
+|---|---|---|---|
+| id | bigint | 主キー | 署名付き Cookie `session_id` の値 |
+| user_id | bigint | 外部キー・必須 | 利用者 |
+| ip_address / user_agent | string | | ログインした端末の情報 |
+| created_at / updated_at | datetime | 必須 | 作成から2週間で期限切れ |
+
+### 各テーブルの user_id
+
+`materials`・`folders`・`bundles`・`tags` に `user_id`（外部キー・インデックス）を持つ。
+ログイン機能より前に作られたデータは `user_id` が NULL で、どの利用者にも表示されない。`bin/rails users:claim_orphans EMAIL=…` で持ち主を割り当てる。
 
 ## 3. materials
 
@@ -85,9 +115,11 @@
 
 | テーブル | インデックス |
 |---|---|
-| materials | folder_id、bundle_id、favorited_at、last_opened_at、deleted_at |
-| folders | parent_id、(parent_id, name) 一意 |
-| tags | name 一意 |
+| materials | user_id、folder_id、bundle_id、favorited_at、last_opened_at、deleted_at |
+| folders | user_id、parent_id、(user_id, parent_id, name) 一意 |
+| tags | user_id、(user_id, name) 一意 |
+| users | email_address 一意 |
+| sessions | user_id |
 | material_tags | material_id、tag_id、(material_id, tag_id) 一意 |
 
 ## 9. 削除時の扱い
@@ -102,7 +134,7 @@
 
 ## 10. 今後の拡張候補
 
-- ユーザー管理（ログイン）と、教材・フォルダの所有者
+- 利用者どうしでの教材の共有
 - ファイルのハッシュ値による重複検知
 - OCR 結果や全文検索用テキストの保存
 - S3 への直接アップロード（大きなファイルの送信を Rails から切り離す）
