@@ -13,4 +13,7 @@ test:
 
 production:
   database: cache
-  <<: *default
+  # Neon の無料プランは保存容量が 0.5GB のため、キャッシュの上限を小さくする
+  store_options:
+    max_size: <%= 64.megabytes %>
+    namespace: <%= Rails.env %>
