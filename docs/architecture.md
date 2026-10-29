@@ -25,8 +25,8 @@ flowchart LR
 ```mermaid
 flowchart LR
     B["ブラウザ"] -->|"HTTPS"| N["Vercel<br/>Next.js"]
-    N -->|"rewrites で転送（HTTPS）<br/>RAILS_API_URL"| R["Render（render.yaml）<br/>Rails API・Docker・Puma<br/>Solid Queue のジョブも同居"]
-    R -->|"DATABASE_URL"| P[("Render Postgres<br/>primary・cache・queue・cable")]
+    N -->|"rewrites で転送（HTTPS）<br/>RAILS_API_URL"| R["Render Web Service（無料）<br/>Rails API・Docker・Puma<br/>Solid Queue のジョブも同居"]
+    R -->|"DATABASE_URL（SSL）"| P[("Neon（PostgreSQL）<br/>primary・cache・queue・cable")]
     R -->|"Active Storage（amazon）<br/>IAM の最小権限"| S[("Amazon S3<br/>非公開バケット")]
     G["GitHub"] -->|"push で CI（GitHub Actions）"| G
     G -.->|"自動デプロイ"| N
@@ -103,5 +103,6 @@ sequenceDiagram
 
 ## 7. デプロイ方針
 
-- Next.js は Vercel、Rails は Render の Docker の Web Service（`backend/Dockerfile`、`render.yaml`）、DB は Render Postgres、ファイルは S3 に置く。
+- Next.js は Vercel、Rails は Render の無料プランの Docker の Web Service（`backend/Dockerfile`。New → Web Service で作成）、DB は Neon の無料プラン、ファイルは S3 に置く。
+- Render の無料プランは15分アクセスがないと休止し、次のアクセスで起動する。休止中はジョブも止まるため、ゴミ箱の期限切れの削除は、ゴミ箱を開いたときにも行う。
 - 手順は [本番環境への移行手順](deployment.md)、候補の比較は [本番環境ガイド（PDF）](deployment-guide.pdf) を参照。
