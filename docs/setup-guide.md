@@ -68,6 +68,14 @@ npm run dev -- -p 3001   # http://localhost:3001
 3. パスワード再設定を試すとき：開発ではメールは送られない。Rails のログ（ターミナル）に `[PasswordsMailer] 再設定のリンク: http://localhost:3001/reset-password?token=…` が出るので、それを開く。
 4. 登録できる人数は `MAX_USERS`（既定 10）まで。手元で増やすときは `MAX_USERS=20 bin/rails server` のように起動する。
 
+5. デモアカウントを試すとき：
+   ```bash
+   bin/rails demo:setup                 # demo@example.com / demo-password で作り、サンプルを登録
+   bin/rails demo:reset CONFIRM=demo    # サンプルの状態に戻す（CONFIRM がないと止まる）
+   ```
+   サンプルデータの中身は `backend/db/demo/sample_data.rb`、添付ファイルは `backend/db/demo/files/`（`db/demo/make_demo_files.mjs` で作成。内容はすべて架空）。
+6. 開発環境では新規登録が開いている。本番と同じく閉じて試すときは `REGISTRATION_OPEN=false bin/rails server` で起動する。
+
 ## 7. テスト・静的解析
 
 ```bash

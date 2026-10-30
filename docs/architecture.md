@@ -87,13 +87,24 @@ sequenceDiagram
 3. API が 401 を返したら（期限切れなど）、画面はログイン画面へ戻る。
 4. パスワードを忘れたときは、再設定のリンク（15分で無効）をメールで送り、`/reset-password` で新しいパスワードを設定する。
 
-### 5.4 削除とゴミ箱
+### 5.4 デモアカウントの初期化
+
+1. 管理者が GitHub の Actions で「Demo reset」を実行する（確認のため `reset` と入力）。
+2. GitHub Actions が、Secrets の `DEMO_ADMIN_TOKEN` を付けて `POST /api/v1/admin/demo_reset` を呼ぶ。
+3. Rails がトークンを確かめ、`DemoAccount.reset!` を実行する。安全装置は次の3つ。
+   - `demo = true` の利用者でなければ例外にする。
+   - 削除はその利用者の `user_id` で絞った範囲だけ。
+   - 同じアドレスの個人用のアカウントがあれば中止する。
+4. 添付ファイルは S3 の実体ごと消し、`backend/db/demo/` のサンプルデータを登録し直す。
+5. ログアウトのたびに自動で初期化することはしない（操作中のデータが急に消えないように）。
+
+### 5.5 削除とゴミ箱
 
 1. 削除するとゴミ箱へ移る（`materials.deleted_at` に日時を入れる）。一覧・件数・一括操作の対象から外れ、まとめからは外れる。
 2. 画面の通知の「元に戻す」か、サイドバーの「ゴミ箱」から元に戻せる。
 3. ゴミ箱で「完全に削除」したもの、または30日を過ぎたもの（`PurgeTrashJob` が毎日 4:00 に実行）は、教材と添付ファイル（S3 の実体）を削除する。添付の削除は Active Storage がジョブで行う。
 
-### 5.5 ファイルの表示
+### 5.6 ファイルの表示
 
 1. プレビュー・ビューアは `file_url`（`/rails/active_storage/blobs/proxy/...`）を読み込む。
 2. Next.js が Rails へ転送し、Rails が保存先からファイルを読み出して返す（proxy 方式）。
@@ -108,7 +119,8 @@ sequenceDiagram
 - 本番は HTTPS のみ（`config.force_ssl`）とし、Rails の `config.hosts` で受け付けるホストを限定する。
 - ログインが必要（メールアドレスとパスワード、`has_secure_password`）。ログイン状態は DB の `sessions` と、署名付きの httpOnly Cookie（`SameSite=Lax`・本番は `Secure`）で持つ。画面と API が同じオリジンなので CORS は不要で、`SameSite=Lax` によりほかのサイトからの変更の要求には Cookie が付かない（CSRF 対策）。
 - データは利用者ごと。API はすべてログイン中の利用者の範囲から探し、添付ファイルの配信（`/rails/active_storage/…`）も教材の持ち主にだけ許す。
-- ログイン・新規登録・パスワード再設定には回数の制限（`rate_limit`）をかける。新規登録は `MAX_USERS` 人まで。
+- ログイン・新規登録・パスワード再設定には回数の制限（`rate_limit`）をかける。本番の新規登録は既定で閉じていて、`REGISTRATION_OPEN=true` のときだけ `MAX_USERS` 人まで受け付ける。
+- デモアカウントのログイン情報・管理用のトークンは、環境変数（Render）と GitHub Secrets にだけ置き、ソースコードや README には書かない。
 - パスワード再設定のメールは Brevo の API（HTTPS）で送る。Render の無料プランは SMTP のポートを使えないため。
 
 ## 7. デプロイ方針

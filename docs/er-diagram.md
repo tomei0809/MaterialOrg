@@ -23,6 +23,7 @@ erDiagram
         bigint id PK
         string email_address "必須・一意・小文字"
         string password_digest "bcrypt"
+        boolean demo "デモアカウントなら true"
         datetime created_at
         datetime updated_at
     }
@@ -127,6 +128,7 @@ erDiagram
 
 ## 設計上の判断
 
+- **デモアカウントも同じ仕組みで分ける**：デモ用の特別なテーブルは作らず、`users.demo` で区別する。初期化は、その利用者の `user_id` で絞った行だけを消して登録し直すので、個人用のデータには触れない。
 - **データは利用者ごと**：教材・フォルダ・まとめ・タグに `user_id` を持たせ、API はすべて `Current.user` の範囲から探す。タグ名・フォルダ名の重複も利用者ごとに判定する（`(user_id, name)`・`(user_id, parent_id, name)` の一意インデックス）。添付ファイルの配信も、教材の持ち主にだけ許す。
 
 - **科目テーブルを持たない**：初期設計の `subjects` は廃止し、科目はフォルダで表す（`20261024131329_remove_subject_from_materials`）。科目・学期・単元のような入れ子を、利用者が自由に作れるようにするため。

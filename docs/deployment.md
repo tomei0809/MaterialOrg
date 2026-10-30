@@ -165,6 +165,9 @@ Render の画面で **New → Web Service** から作る（Blueprint は使わ�
 | `RAILS_LOG_LEVEL` | `info` |
 | `WEB_CONCURRENCY` | `0`（Puma を1プロセスで動かしてメモリを節約する。Render は既定で 1 を入れ、余分な親プロセスが増える） |
 | `MAX_USERS` | `10`（新規登録できる人数の上限。増やすときはここを変える） |
+| `REGISTRATION_OPEN` | 入れない（本番の新規登録は閉じる）。友人のアカウントを作るときだけ一時的に `true`（10. を参照） |
+| `DEMO_EMAIL`・`DEMO_PASSWORD` | デモアカウントのログイン情報（7. を参照） |
+| `DEMO_ADMIN_TOKEN` | デモを初期化する管理用のトークン（7. を参照） |
 | `APP_URL` | Vercel の URL（例 `https://material-organization.vercel.app`。末尾の `/` なし。再設定のメールのリンクに使う） |
 | `BREVO_API_KEY` | 6. で作る Brevo の API キー（後から入れてよい） |
 | `MAIL_FROM` | 6. で確認した送信元（入力の形は 6.3） |
@@ -264,7 +267,48 @@ Render の `materialorg-api` → **Environment** で3つを入れ、「Save Chan
 
 > `BREVO_API_KEY` が空のときは、メールは送られず捨てられる（再設定の画面は「送りました」と表示される）。
 
-## 7. 公開後の確認
+## 7. デモアカウント（ポートフォリオ用）
+
+採用担当者などが試すためのアカウント。ログイン情報はポートフォリオの PDF にだけ書く（README・ソースコード・GitHub には書かない）。
+
+### 7.1 環境変数を入れる
+
+Render の **Environment** に3つを入れて保存する。
+
+| Key | Value |
+|---|---|
+| `DEMO_EMAIL` | デモ用のアドレス（実在しなくてよい。例 `demo@materialorg.example`）。**個人用のアカウントと別のアドレスにする** |
+| `DEMO_PASSWORD` | デモ用のパスワード（8文字以上。PDF に載せる値。個人用と同じものは使わない） |
+| `DEMO_ADMIN_TOKEN` | 初期化の API を守るトークン（32文字以上のランダムな文字列。手元で `ruby -rsecurerandom -e 'puts SecureRandom.hex(32)'` などで作る） |
+
+### 7.2 GitHub に設定する
+
+リポジトリの **Settings → Secrets and variables → Actions** で次を登録する。
+
+| 種類 | 名前 | 値 |
+|---|---|---|
+| Secrets | `DEMO_ADMIN_TOKEN` | 7.1 と同じトークン |
+| Variables | `API_URL` | `https://materialorg-api.onrender.com`（末尾の `/` なし） |
+
+### 7.3 作る・初期化する
+
+1. GitHub の **Actions** → 左の一覧の **Demo reset** → **Run workflow**
+2. 入力欄に `reset` と入れて実行する（ほかの文字では実行されない）
+3. 初回はデモアカウントが作られ、サンプルデータ（18件・フォルダ・タグ・まとめ・添付ファイル）が登録される。2回目からは、デモで追加・編集・削除された内容が消えてサンプルの状態に戻る（パスワードも戻る）
+4. ログの最後に `{"email":"…","removed_materials":…,"created_materials":18}` が出れば成功
+
+- 初期化の対象は `demo` が true の利用者だけ。個人用のアカウントのデータには触れない。`DEMO_EMAIL` が個人用のアカウントと同じアドレスなら中止される（409）。
+- Render が休止していると起動に1分ほどかかる（最大5分待つ）。
+- 初期化は自動では行わない。採用担当者に見てもらう前などに、必要なときだけ実行する。
+
+### 7.4 ポートフォリオの PDF に書くこと
+
+- アプリの概要と使い方
+- URL：https://material-organization.vercel.app
+- デモアカウントのメールアドレスとパスワード（`DEMO_EMAIL`・`DEMO_PASSWORD` の値）
+- 資料の追加・編集・削除を含む全機能を試せること（パスワードの変更はできない。データは管理者が初期化することがある）
+
+## 8. 公開後の確認
 
 `<WEB_URL>` を開いて、上から順に確認する。Render が休止していると最初の表示に1分ほどかかる（一覧が「読み込み中」のまま待つ）。
 
@@ -275,14 +319,14 @@ Render の `materialorg-api` → **Environment** で3つを入れ、「Save Chan
 | 3 | 小さな PDF（1MB 程度）を登録 | 一覧に出る。S3 のバケットにオブジェクトが増え、Neon の `active_storage_blobs` に行が増える |
 | 4 | ビューアで開く | PDF が表示される。S3 のオブジェクトの URL を直接開くと AccessDenied（非公開） |
 | 5 | 動画・音声を登録して位置を移す | その位置から再生される（Network で 206） |
-| 6 | 大きなファイル（10MB・100MB） | 登録できる。**413 などで失敗したら 8. を参照** |
+| 6 | 大きなファイル（10MB・100MB） | 登録できる。**413 などで失敗したら 9. を参照** |
 | 7 | 教材をゴミ箱へ → 元に戻す | 一覧から消えて戻る。ゴミ箱で「完全に削除」すると、少し後に S3 のオブジェクトも消える |
 | 8 | 20分ほど放置してから開き直す | 1分ほどで表示される（Render の休止からの起動）。データは残っている |
 | 9 | Render のログ | `Completed 200` が並び、エラーがない |
 | 10 | 別のブラウザ（シークレットウィンドウ）で別の人として登録 | 1人目の教材は見えない |
 | 11 | 「パスワードを忘れた方」で自分のアドレスを入れる | 再設定のメールが届き、リンクから新しいパスワードを設定できる |
 
-## 8. うまくいかないとき
+## 9. うまくいかないとき
 
 | 症状 | 見る場所・対処 |
 |---|---|
@@ -299,14 +343,18 @@ Render の `materialorg-api` → **Environment** で3つを入れ、「Save Chan
 | Render が `Out of memory` で再起動する | 無料プランは 512MB。Environment で `RAILS_MAX_THREADS` を 2 に下げる。続くなら Settings の Instance Type を有料（Starter 以上）に変える |
 | ログインしてもすぐログイン画面に戻る | Rails の本番は Cookie を `Secure` で付ける。Vercel の URL が `https://` か、Render の `APP_HOST` に Vercel のホスト名が入っているか（403 になっていないか） |
 | 再設定のメールが届かない | Render の Logs で `Brevo へのメール送信に失敗しました` を探す。`401`・`unrecognised IP` なら 6.2 の Authorised IPs、`sender` を含む誤りなら `MAIL_FROM` が Verified のアドレスと同じか、キーの誤りなら `BREVO_API_KEY`。ログに何も出なければ `BREVO_API_KEY` が空。迷惑メールのフォルダも確かめる |
-| 新規登録で「上限に達している」 | Render の Environment で `MAX_USERS` を増やす |
+| 新規登録で「新規登録は受け付けていません」 | 本番の既定。友人のアカウントを作るときは 10. の手順で一時的に開く |
+| Demo reset が 404 | Render に `DEMO_ADMIN_TOKEN` が入っていないか、32文字未満 |
+| Demo reset が 401 | GitHub Secrets と Render の `DEMO_ADMIN_TOKEN` が一致していない |
+| Demo reset が 409 | `DEMO_EMAIL` が個人用のアカウントと同じアドレス、または `DEMO_EMAIL`・`DEMO_PASSWORD` が未設定 |
 | Neon の容量・計算時間の警告 | Neon の Dashboard → Usage。ゴミ箱を空にする、古い教材を整理する。足りなければ Neon の有料プラン |
 
-## 9. その後の運用
+## 10. その後の運用
 
 - `main` に push すると、Render と Vercel が自動で再デプロイする（マイグレーションは起動時の `db:prepare` で実行）。
 - GitHub Actions の CI が通ったものだけをマージする。
 - ゴミ箱は30日を過ぎたものが毎日 4:00 に自動で完全に削除される（Render が休止中なら、次にゴミ箱を開いたときに削除される）。
-- 利用者：誰でも新規登録できる（`MAX_USERS` 人まで）。データは各自のもので共有されない。人数を増やすときは `MAX_USERS` を変える。
+- 利用者：本番の新規登録は閉じている。友人のアカウントを作るときは、Render の Environment で `REGISTRATION_OPEN=true` を足して保存 → 本人に新規登録してもらう → `REGISTRATION_OPEN` を消して保存する（`MAX_USERS` 人まで）。データは各自のもので共有されない。
+- デモアカウント：必要なときに Actions の「Demo reset」で初期の状態に戻す（7.3）。
 - バックアップ：Neon の無料プランは、一定期間内の任意の時点へ戻せる（Restore）。期間は公式ページで確かめる。S3 はバージョニングで誤削除に備える。
 - 有料へ移るとき：Render はサービスの Settings → Instance Type を変えるだけ。Neon は Billing からプランを変える。DB の移し替えは不要。

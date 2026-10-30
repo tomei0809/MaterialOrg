@@ -30,6 +30,7 @@
 |---|---|---|---|
 | id | bigint | 主キー | 利用者ID |
 | email_address | string | 必須・一意・小文字で保存 | ログインに使うメールアドレス |
+| demo | boolean | 必須・既定 false | ポートフォリオ用のデモアカウントなら true |
 | password_digest | string | 必須 | パスワードのハッシュ（bcrypt。`has_secure_password`） |
 | created_at / updated_at | datetime | 必須 | |
 
@@ -123,6 +124,9 @@
 | material_tags | material_id、tag_id、(material_id, tag_id) 一意 |
 
 ## 9. 削除時の扱い
+
+デモアカウントの初期化（`DemoAccount.reset!`）は、`demo = true` の利用者の教材（添付ファイルの実体を含む）・まとめ・フォルダ・タグだけを削除し、サンプルデータを登録し直す。`demo = false` の利用者には実行できない。
+
 
 | 削除するもの | 扱い |
 |---|---|

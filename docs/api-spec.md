@@ -19,7 +19,7 @@
 | ステータス | 場面 | 本文 |
 |---|---|---|
 | 401 Unauthorized | ログインしていない・ログインの期限切れ | `{ "errors": ["ログインしてください"] }` |
-| 403 Forbidden | 新規登録の人数が上限に達している | `{ "errors": ["…"] }` |
+| 403 Forbidden | 新規登録を受け付けていない・デモアカウントでパスワードを変更しようとした | `{ "errors": ["…"] }` |
 | 422 Unprocessable Entity | 検証エラー | `{ "errors": ["タイトルを入力してください"] }` |
 | 429 Too Many Requests | ログイン・新規登録・再設定の試行が多すぎる | `{ "errors": ["…"] }` |
 | 404 Not Found | ID の対象がない | Rails 標準（本文は空または HTML。画面では「見つかりません」として扱う） |
@@ -36,6 +36,8 @@
 
 | メソッド | パス | 用途 |
 |---|---|---|
+| GET | `/api/v1/registration` | 新規登録を受け付けているか（ログイン不要） |
+| POST | `/api/v1/admin/demo_reset` | デモアカウントの初期化（管理者用。`DEMO_ADMIN_TOKEN` が必要） |
 | GET | `/api/v1/session` | ログイン中の利用者 |
 | POST | `/api/v1/session` | ログイン |
 | DELETE | `/api/v1/session` | ログアウト |
@@ -392,6 +394,12 @@ curl -X POST http://localhost:3000/api/v1/materials \
 
 **204 No Content**。この端末のログインだけを終わらせ、Cookie を消す。
 
+### 7.4.1 GET /api/v1/registration（新規登録の受付）
+
+**200 OK**：`{ "open": false }`
+
+本番は環境変数 `REGISTRATION_OPEN=true` のときだけ `true`（既定は閉じている）。開発・テストは既定で `true`。ログイン画面は `false` のとき「新規登録」のタブを出さない。
+
 ### 7.5 POST /api/v1/users（新規登録）
 
 ```json
@@ -432,7 +440,36 @@ curl -X POST http://localhost:3000/api/v1/materials \
 **204 No Content**：変更した。すべての端末のログインは終わる。
 **422**：トークンが無効・期限切れ、またはパスワードの誤り。
 
-## 8. 実装上の注意
+## 8. デモアカウント
+
+ポートフォリオ用のデモアカウント（`users.demo = true`）。アプリの機能（資料の追加・編集・削除など）はすべて個人用と同じに使える。違いは次のとおり。
+
+| 操作 | デモアカウントでの動き |
+|---|---|
+| `PATCH /api/v1/users/me/password` | 403 `{ "errors": ["デモアカウントではパスワードを変更できません"] }` |
+| `POST /api/v1/passwords` | メールを送らない（応答はほかと同じ） |
+| `PATCH /api/v1/passwords/:token` | 422 |
+| ログイン中の利用者のオブジェクト | `"demo": true` |
+
+### 8.1 POST /api/v1/admin/demo_reset（デモの初期化）
+
+ログインの代わりに、管理用のトークンで確かめる。GitHub Actions の「Demo reset」（`.github/workflows/demo-reset.yml`）から呼ぶ。
+
+```http
+POST /api/v1/admin/demo_reset
+Authorization: Bearer <DEMO_ADMIN_TOKEN>
+```
+
+1. デモの利用者（`DEMO_EMAIL`）がいなければ作る。同じアドレスの個人用のアカウントがあれば中止する（409）。
+2. デモの利用者の教材の添付ファイルを、保存先（S3）の実体ごと削除する。
+3. デモの利用者の教材・まとめ・フォルダ・タグを削除する（`user_id` で絞った範囲だけ）。
+4. パスワードを `DEMO_PASSWORD` に戻す。
+5. サンプルデータ（`backend/db/demo/`）を登録し直す。
+
+**200 OK**：`{ "email": "…", "removed_materials": 18, "created_materials": 18 }`
+**401**：トークンがない・違う。 **404**：`DEMO_ADMIN_TOKEN` が未設定か 32 文字未満（機能が無効）。 **409**：アドレスの衝突・環境変数の不足。 **429**：1時間に5回を超えた。
+
+## 9. 実装上の注意
 
 - 各コントローラーは `Current.user.materials` のように、ログイン中の利用者の範囲から探す。タグとフォルダ名の重複も利用者ごとに判定する。
 
