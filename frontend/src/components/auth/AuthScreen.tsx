@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClass } from '@/components/ui/FormField';
 import {
+  fetchRegistration,
   login,
   MIN_PASSWORD_LENGTH,
   requestPasswordReset,
@@ -36,6 +37,18 @@ export function AuthScreen({ onAuthenticated, expired = false }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState(expired ? 'ログインの有効期限が切れました。もう一度ログインしてください。' : '');
+  // 新規登録を受け付けているか（閉じていれば「新規登録」のタブを出さない）
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchRegistration()
+      .then((open) => active && setRegistrationOpen(open))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function switchMode(next: Mode) {
     setMode(next);
@@ -72,7 +85,7 @@ export function AuthScreen({ onAuthenticated, expired = false }: Props) {
 
   return (
     <AuthShell title={titles[mode]}>
-      {mode !== 'forgot' && (
+      {mode !== 'forgot' && registrationOpen && (
         <div role="tablist" aria-label="ログインか新規登録か" className="mb-5 grid grid-cols-2 rounded-lg bg-surface-muted p-1 text-sm">
           {(['login', 'signup'] as const).map((tab) => (
             <button

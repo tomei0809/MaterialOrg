@@ -11,6 +11,12 @@ Rails.application.routes.draw do
       # ログイン・新規登録・パスワード
       resource :session, only: %i[show create destroy]
       resources :users, only: :create
+      # 新規登録を受け付けているか（ログイン画面で「新規登録」を出すか決める）
+      get "registration", to: "users#registration"
+      # デモアカウントの初期化（管理者用。DEMO_ADMIN_TOKEN が必要）
+      namespace :admin do
+        resource :demo_reset, only: :create
+      end
       patch "users/me/password", to: "users#update_password"
       resources :passwords, only: %i[create update], param: :token
 

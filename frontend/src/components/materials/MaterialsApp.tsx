@@ -1071,6 +1071,7 @@ export function MaterialsApp({ user, onLogout }: Props) {
         activeMaterialId={panel?.mode === 'detail' ? panel.id : null}
         trashCount={trashCount}
         userEmail={user.email_address}
+        isDemo={user.demo}
         onLogout={onLogout}
         onOpenTrash={() => {
           setSidebarOpen(false);

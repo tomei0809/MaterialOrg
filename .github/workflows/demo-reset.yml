@@ -1,0 +1,29 @@
+name: Demo reset
+
+# デモアカウントのデータを、サンプルの状態に戻す（管理者が Actions の画面から手で実行する）。
+# 必要な設定（リポジトリの Settings → Secrets and variables → Actions）
+#   Secrets：DEMO_ADMIN_TOKEN（Render の環境変数 DEMO_ADMIN_TOKEN と同じ値。32文字以上）
+#   Variables：API_URL（Rails の URL。例 https://materialorg-api.onrender.com）
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "誤操作を防ぐため、reset と入力してください"
+        required: true
+        default: ""
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.confirm == 'reset' }}
+    steps:
+      - name: Reset demo account
+        env:
+          API_URL: ${{ vars.API_URL }}
+          DEMO_ADMIN_TOKEN: ${{ secrets.DEMO_ADMIN_TOKEN }}
+        # Render の無料プランが休止していると起動に1分ほどかかるため、待ち時間を長めにとる
+        run: |
+          curl --fail-with-body --silent --show-error --retry 3 --retry-delay 20 --max-time 300 \
+            -X POST "$API_URL/api/v1/admin/demo_reset" \
+            -H "Authorization: Bearer $DEMO_ADMIN_TOKEN"
+          echo

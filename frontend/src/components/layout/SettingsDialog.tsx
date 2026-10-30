@@ -191,7 +191,13 @@ export function SettingsDialog({ user, onLogout, onClose }: Props) {
               ログアウト
             </Button>
           </div>
-          <PasswordChange />
+          {user.demo ? (
+            <p className="rounded-lg bg-surface-muted px-3 py-2 text-xs text-muted">
+              デモアカウントでは、パスワードを変更できません。資料の追加・編集・削除などはすべて試せます（データは管理者が初期の状態に戻すことがあります）。
+            </p>
+          ) : (
+            <PasswordChange />
+          )}
         </fieldset>
 
         <fieldset>

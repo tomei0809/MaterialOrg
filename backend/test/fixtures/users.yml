@@ -7,3 +7,9 @@ one:
 two:
   email_address: two@example.com
   password_digest: <%= password_digest %>
+
+# ポートフォリオ用のデモアカウント（DemoAccount の既定のアドレス）
+demo:
+  email_address: demo@example.com
+  password_digest: <%= BCrypt::Password.create("demo-password") %>
+  demo: true

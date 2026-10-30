@@ -1,7 +1,8 @@
 // ログイン・新規登録・パスワードの API（Rails の /api/v1/session・users・passwords）。
 // ログイン状態は Rails が httpOnly の Cookie で持つので、画面側ではトークンを扱わない
 
-export type CurrentUser = { id: number; email_address: string };
+// demo：ポートフォリオ用のデモアカウント（パスワードは変更できない）
+export type CurrentUser = { id: number; email_address: string; demo: boolean };
 
 const SESSION_URL = '/api/v1/session';
 const USERS_URL = '/api/v1/users';
@@ -19,6 +20,14 @@ async function parse<T>(response: Response, fallback: string): Promise<T> {
     throw new Error(errors?.join('\n') || fallback);
   }
   return data as T;
+}
+
+// 新規登録を受け付けているか（閉じていればログイン画面に「新規登録」を出さない）
+export async function fetchRegistration(): Promise<boolean> {
+  const response = await fetch('/api/v1/registration', { cache: 'no-store' });
+  if (!response.ok) return false;
+  const data = (await response.json().catch(() => ({}))) as { open?: boolean };
+  return data.open === true;
 }
 
 // ログイン中の利用者（ログインしていなければ null）

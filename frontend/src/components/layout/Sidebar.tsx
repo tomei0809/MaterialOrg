@@ -69,6 +69,8 @@ type Props = {
   onOpenSettings: () => void;
   // ログイン中の利用者のメールアドレスとログアウト
   userEmail: string;
+  // デモアカウントなら、メールアドレスの横に「デモ」の札を出す
+  isDemo: boolean;
   onLogout: () => void;
   // 詳細パネルで開いている教材（フォルダを展開したときの教材名を強調する）
   activeMaterialId: number | null;
@@ -453,6 +455,7 @@ export function Sidebar({
   onOpenTrash,
   onDropToTrash,
   userEmail,
+  isDemo,
   onLogout,
 }: Props) {
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
@@ -1048,6 +1051,14 @@ export function Sidebar({
             <span className="min-w-0 flex-1 truncate" title={userEmail}>
               {userEmail}
             </span>
+            {isDemo && (
+              <span
+                title="デモアカウントです。データは管理者が初期の状態に戻すことがあります"
+                className="shrink-0 rounded border border-sidebar-border px-1 text-[10px] leading-4 font-bold text-sidebar-foreground"
+              >
+                デモ
+              </span>
+            )}
             <button
               type="button"
               onClick={onLogout}

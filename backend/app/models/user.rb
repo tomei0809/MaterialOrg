@@ -1,4 +1,5 @@
-# アプリの利用者。教材・フォルダ・まとめ・タグは利用者ごとに持ち、ほかの利用者とは共有しない
+# アプリの利用者。教材・フォルダ・まとめ・タグは利用者ごとに持ち、ほかの利用者とは共有しない。
+# demo が true の利用者はポートフォリオ用のデモアカウント（DemoAccount で作成・初期化する）
 class User < ApplicationRecord
   MIN_PASSWORD_LENGTH = 8
 
@@ -22,7 +23,10 @@ class User < ApplicationRecord
     ENV.fetch("MAX_USERS", 10).to_i
   end
 
+  # 新規登録を受け付けるか。本番は環境変数 REGISTRATION_OPEN=true のときだけ開く（既定は閉じる）。
+  # 開発・テストは既定で開く。どちらも MAX_USERS の上限は残す
   def self.registration_open?
-    count < max_users
+    open = ENV.fetch("REGISTRATION_OPEN") { Rails.env.production? ? "false" : "true" }
+    ActiveModel::Type::Boolean.new.cast(open) && count < max_users
   end
 end

@@ -8,7 +8,9 @@ module Api
       # POST /api/v1/passwords { email_address }
       # 登録の有無を知られないよう、アドレスがあってもなくても同じ応答を返す
       def create
-        if (user = User.find_by(email_address: params[:email_address].to_s.strip.downcase))
+        # デモアカウントには送らない（パスワードを変えられないようにするため。応答は同じにする）
+        user = User.find_by(email_address: params[:email_address].to_s.strip.downcase)
+        if user && !user.demo?
           PasswordsMailer.reset(user).deliver_later
         end
         render json: { message: "登録されているアドレスなら、再設定のメールを送りました" }
@@ -18,6 +20,9 @@ module Api
       # 再設定したら、すべての端末のログインを終わらせる
       def update
         user = User.find_by_password_reset_token!(params[:token])
+        if user.demo?
+          return render json: { errors: [ "デモアカウントではパスワードを変更できません" ] }, status: :unprocessable_entity
+        end
         if params[:password].blank?
           return render json: { errors: [ "新しいパスワードを入力してください" ] }, status: :unprocessable_entity
         end

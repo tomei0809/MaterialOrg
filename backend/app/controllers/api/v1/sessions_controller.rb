@@ -29,7 +29,7 @@ module Api
       private
 
       def user_json(user)
-        { id: user.id, email_address: user.email_address }
+        { id: user.id, email_address: user.email_address, demo: user.demo? }
       end
 
       def too_many_requests
