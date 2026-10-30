@@ -15,7 +15,7 @@
 | 画面（Vercel） | https://material-organization.vercel.app |
 | API（Render・Web Service・Free・Singapore） | https://materialorg-api.onrender.com（サービス名 `materialorg-api`） |
 | DB | Neon（Singapore）。DB 名は既定の `neondb`（cache・queue・cable は `neondb_cache` などが自動で作られた） |
-| ファイル | Amazon S3（東京） |
+| ファイル | Amazon S3（シドニー ap-southeast-2） |
 | CI | GitHub Actions（`main` への push ごとに backend・frontend を検査） |
 
 `main` に push すると、Render と Vercel が自動で再デプロイする。
@@ -159,7 +159,7 @@ Render の画面で **New → Web Service** から作る（Blueprint は使わ�
 | `AWS_ACCESS_KEY_ID` | 1.2 で控えたアクセスキー ID |
 | `AWS_SECRET_ACCESS_KEY` | 1.2 で控えたシークレットアクセスキー |
 | `S3_BUCKET` | 1.1 のバケット名 |
-| `AWS_REGION` | `ap-northeast-1` |
+| `AWS_REGION` | バケットを作った地域のコード（今の本番は `ap-southeast-2`）。**バケットの地域と必ず同じにする**（違うと `PermanentRedirect` のエラーになる） |
 | `SOLID_QUEUE_IN_PUMA` | `true`（添付の削除・ゴミ箱の自動削除のジョブを Puma の中で動かす） |
 | `RAILS_MAX_THREADS` | `3`（無料プランのメモリ 512MB に合わせて少なめに） |
 | `RAILS_LOG_LEVEL` | `info` |
@@ -338,7 +338,8 @@ Render の **Environment** に3つを入れて保存する。
 | テーブルがない（`relation "materials" does not exist`） | 同上（`db:prepare` が実行されていない） |
 | `PG::ConnectionBad`・`could not translate host name` | `DATABASE_URL` が Neon の Direct の接続文字列か（`-pooler` が付いていないか）、`sslmode=require` が付いているか |
 | `prepared statement ... does not exist` | pooler 付きの接続文字列を使っている。2.2 の Direct の方に替える |
-| 登録で 500・`Aws::S3::Errors::AccessDenied` | IAM ポリシーのバケット名、`S3_BUCKET`、リージョン |
+| 登録で 500・`Aws::S3::Errors::AccessDenied` | IAM ポリシーのバケット名、`S3_BUCKET`。削除だけ失敗する（`not authorized to perform: s3:DeleteObject`）なら、1.2 のポリシーに `s3:DeleteObject` が入っているか |
+| `Aws::S3::Errors::PermanentRedirect` | `AWS_REGION` がバケットの地域と違う。S3 のバケット一覧の「AWS リージョン」の列と同じコードにする |
 | 大きなファイルだけ失敗（413 など） | Vercel の転送経路の上限。小さなファイルで運用するか、[本番環境ガイド](deployment-guide.pdf) 7.3 の「S3 への直接アップロード」を実装する |
 | Render が `Out of memory` で再起動する | 無料プランは 512MB。Environment で `RAILS_MAX_THREADS` を 2 に下げる。続くなら Settings の Instance Type を有料（Starter 以上）に変える |
 | ログインしてもすぐログイン画面に戻る | Rails の本番は Cookie を `Secure` で付ける。Vercel の URL が `https://` か、Render の `APP_HOST` に Vercel のホスト名が入っているか（403 になっていないか） |
