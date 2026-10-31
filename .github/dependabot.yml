@@ -15,3 +15,11 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  # 大きな版の更新は、コードの書き換えや対応の確認が必要なので手で行う
+  ignore:
+  - dependency-name: typescript
+    update-types: ["version-update:semver-major"]
+  - dependency-name: pdfjs-dist
+    update-types: ["version-update:semver-major"]
+  - dependency-name: "@types/node"
+    update-types: ["version-update:semver-major"]

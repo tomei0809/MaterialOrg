@@ -3,7 +3,7 @@
 ## 1. 目的
 
 Material Organization の構成要素、各技術の役割、データの流れを定義する。
-本番環境の作り方は [本番環境への移行手順](deployment.md)、デプロイ先の候補の比較は [本番環境ガイド（PDF）](deployment-guide.pdf) にまとめている。
+本番環境の作り方は [本番環境への移行手順](deployment.md) にまとめている。
 
 ## 2. システム構成
 
@@ -127,4 +127,4 @@ sequenceDiagram
 
 - Next.js は Vercel、Rails は Render の無料プランの Docker の Web Service（`backend/Dockerfile`。New → Web Service で作成）、DB は Neon の無料プラン、ファイルは S3 に置く。
 - Render の無料プランは15分アクセスがないと休止し、次のアクセスで起動する。休止中はジョブも止まるため、ゴミ箱の期限切れの削除は、ゴミ箱を開いたときにも行う。
-- 手順は [本番環境への移行手順](deployment.md)、候補の比較は [本番環境ガイド（PDF）](deployment-guide.pdf) を参照。
+- 手順は [本番環境への移行手順](deployment.md) を参照。

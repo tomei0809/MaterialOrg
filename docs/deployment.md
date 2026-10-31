@@ -1,7 +1,6 @@
 # 本番環境への移行手順（Vercel ＋ Render 無料プラン ＋ Neon ＋ Amazon S3）
 
 この手順で、画面（Next.js）を Vercel、API（Rails）を Render の無料プラン、PostgreSQL を Neon の無料プラン、添付ファイルを Amazon S3 に置いて公開する。
-候補の比較・考え方は [本番環境ガイド（PDF）](deployment-guide.pdf) を参照（PDF は Render の有料プランと Render Postgres を前提に書いた比較資料。実際の手順はこの文書に従う）。
 
 ```
 ブラウザ ──HTTPS──▶ Vercel（Next.js）──rewrites──▶ Render 無料（Rails API・Docker）──SSL──▶ Neon（PostgreSQL・DB 4つ）
@@ -340,7 +339,7 @@ Render の **Environment** に3つを入れて保存する。
 | `prepared statement ... does not exist` | pooler 付きの接続文字列を使っている。2.2 の Direct の方に替える |
 | 登録で 500・`Aws::S3::Errors::AccessDenied` | IAM ポリシーのバケット名、`S3_BUCKET`。削除だけ失敗する（`not authorized to perform: s3:DeleteObject`）なら、1.2 のポリシーに `s3:DeleteObject` が入っているか |
 | `Aws::S3::Errors::PermanentRedirect` | `AWS_REGION` がバケットの地域と違う。S3 のバケット一覧の「AWS リージョン」の列と同じコードにする |
-| 大きなファイルだけ失敗（413 など） | Vercel の転送経路の上限。小さなファイルで運用するか、[本番環境ガイド](deployment-guide.pdf) 7.3 の「S3 への直接アップロード」を実装する |
+| 大きなファイルだけ失敗（413 など） | Vercel の転送経路の上限。小さなファイルで運用するか、S3 への直接アップロード（ブラウザから S3 へ直接送る方式）を実装する |
 | Render が `Out of memory` で再起動する | 無料プランは 512MB。Environment で `RAILS_MAX_THREADS` を 2 に下げる。続くなら Settings の Instance Type を有料（Starter 以上）に変える |
 | ログインしてもすぐログイン画面に戻る | Rails の本番は Cookie を `Secure` で付ける。Vercel の URL が `https://` か、Render の `APP_HOST` に Vercel のホスト名が入っているか（403 になっていないか） |
 | 再設定のメールが届かない | Render の Logs で `Brevo へのメール送信に失敗しました` を探す。`401`・`unrecognised IP` なら 6.2 の Authorised IPs、`sender` を含む誤りなら `MAIL_FROM` が Verified のアドレスと同じか、キーの誤りなら `BREVO_API_KEY`。ログに何も出なければ `BREVO_API_KEY` が空。迷惑メールのフォルダも確かめる |

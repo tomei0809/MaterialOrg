@@ -33,3 +33,7 @@ desktop.ini
 *.swp
 .vscode/*
 !.vscode/extensions.json
+
+# 開発用の個人資料（PDF）は公開しない
+docs/*.pdf
+docs/design/
